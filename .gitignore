@@ -1,0 +1,7 @@
+.env
+venv/
+__pycache__/
+*.pyc
+bookings.db
+app_backup.py
+bookings_backup.db

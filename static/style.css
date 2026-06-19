@@ -1,0 +1,97 @@
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: linear-gradient(135deg, #012169, #ffffff, #c8102e);
+    color: #111;
+}
+
+.language-switcher {
+    text-align: right;
+    padding: 20px;
+    font-size: 28px;
+}
+
+.hero {
+    background: white;
+    max-width: 800px;
+    margin: 80px auto;
+    padding: 50px;
+    border-radius: 20px;
+    text-align: center;
+    border: 5px solid #012169;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+}
+
+h1 {
+    color: #012169;
+    font-size: 42px;
+}
+
+p {
+    font-size: 20px;
+}
+
+button {
+    background: #c8102e;
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    font-size: 18px;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #012169;
+}
+.calendar {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 30px;
+}
+
+.calendar th {
+    background: #012169;
+    color: white;
+    padding: 12px;
+}
+
+.calendar td {
+    border: 1px solid #ccc;
+    padding: 12px;
+    text-align: center;
+}
+
+.unavailable {
+    background: #333;
+    color: white;
+    font-weight: bold;
+}
+.booking-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 400px;
+    margin: 30px auto;
+
+.booking-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 400px;
+    margin: 30px auto;
+    text-align: left;
+}
+
+.booking-form label {
+    font-weight: bold;
+    color: #012169;
+}
+
+.booking-form input,
+.booking-form select {
+    padding: 12px;
+    font-size: 16px;
+    border: 2px solid #012169;
+    border-radius: 8px;
+}

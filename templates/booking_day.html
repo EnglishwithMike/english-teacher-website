@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ day.title() }} Booking</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="hero">
+    <h1>{{ day.title() }}</h1>
+
+    <h3>Select a lesson time (10:00–17:00)</h3>
+
+    <div class="day-grid">
+        {% set times = ["10:00","11:00","12:00","13:00","14:00","15:00","16:00"] %}
+
+        {% for t in times %}
+            {% if t in booked %}
+                <button type="button" disabled style="background:#012169; opacity:0.5; cursor:not-allowed;">
+                    Booked
+                </button>
+            {% else %}
+                <button type="button" onclick="selectTime(this)" data-time="{{ t }}">
+                    {{ t }}
+                </button>
+            {% endif %}
+        {% endfor %}
+    </div>
+
+    <h2>Booking Details</h2>
+
+    <form class="booking-form" action="/book" method="POST">
+        <input type="hidden" name="day" id="dayInput">
+        <input type="hidden" name="time" id="timeInput">
+
+        <label>Your Name</label><br>
+        <input type="text" name="name" required><br><br>
+
+        <label>Email</label><br>
+        <input type="email" name="email" required><br><br>
+
+        <label>Phone / WhatsApp (optional)</label><br>
+        <input type="text" name="phone"><br><br>
+
+        <button type="submit">Book Lesson</button>
+    </form>
+
+    <br>
+    <a href="/booking">← Back to Calendar</a>
+</div>
+
+<script>
+function selectTime(button) {
+    document.querySelectorAll('.day-grid button').forEach(btn => {
+        if (!btn.disabled) {
+            btn.style.background = '#c8102e';
+            btn.style.color = 'white';
+        }
+    });
+
+    button.style.background = '#012169';
+    button.style.color = 'white';
+
+    document.getElementById("timeInput").value = button.getAttribute("data-time");
+}
+
+document.getElementById("dayInput").value = "{{ day }}";
+</script>
+
+</body>
+</html>
