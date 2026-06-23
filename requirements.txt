@@ -11,6 +11,7 @@ MarkupSafe==3.0.3
 packaging==26.2
 python-dotenv==1.2.2
 requests==2.34.2
+resend==2.32.2
 stripe==15.2.1
 typing_extensions==4.15.0
 urllib3==2.7.0
