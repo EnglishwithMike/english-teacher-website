@@ -53,6 +53,9 @@ init_db()
 
 
 def send_email(to_email, subject, message):
+    print("MAIL_SERVER =", MAIL_SERVER)
+    print("MAIL_PORT =", MAIL_PORT)
+
     try:
         server = smtplib.SMTP_SSL(MAIL_SERVER, MAIL_PORT, timeout=10)
         server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
