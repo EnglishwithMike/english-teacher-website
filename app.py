@@ -51,16 +51,16 @@ init_db()
 
 
 def send_email(to_email, subject, message):
-    msg = MIMEText(message)
-    msg["Subject"] = subject
-    msg["From"] = EMAIL_ADDRESS
-    msg["To"] = to_email
-
-    server = smtplib.SMTP("smtp.gmail.com", 587)
-    server.starttls()
-    server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-    server.send_message(msg)
-    server.quit()
+    try:
+        server = smtplib.SMTP("smtp.gmail.com", 587, timeout=20)
+        server.starttls()
+        server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+        server.sendmail(EMAIL_ADDRESS, to_email, f"Subject: {subject}\n\n{message}")
+        server.quit()
+        return True
+    except Exception as e:
+        print("EMAIL ERROR:", e)
+        return False
 
 
 @app.route("/")
