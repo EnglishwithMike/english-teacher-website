@@ -57,7 +57,7 @@ def send_email(to_email, subject, message):
     print("MAIL_PORT =", MAIL_PORT)
 
     try:
-        server = smtplib.SMTP_SSL(MAIL_SERVER, MAIL_PORT, timeout=10)
+        server = smtplib.SMTP_SSL(MAIL_SERVER, MAIL_PORT, timeout=3)
         server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
 
         email_text = f"""From: {EMAIL_ADDRESS}
@@ -72,7 +72,9 @@ Subject: {subject}
         return True
 
     except BaseException as e:
-        print("EMAIL ERROR:", e)
+        import traceback
+        print("EMAIL ERROR:", repr(e))
+        traceback.print_exc()
         return False
 
 
@@ -186,15 +188,11 @@ def success():
             INSERT INTO bookings (day, time, name, email, phone, checkout_session_id, email_sent)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (day, time, name, email, phone, session_id, 0))
-
         conn.commit()
 
-    c.execute("SELECT email_sent FROM bookings WHERE checkout_session_id=?", (session_id,))
-    result = c.fetchone()
-    email_sent = result[0] if result else 0
+    conn.close()
 
-    if email_sent == 0:
-        owner_msg = f"""
+    owner_msg = f"""
 New paid booking received:
 
 Name: {name}
@@ -204,9 +202,9 @@ Day: {day}
 Time: {time}
 Payment: £10 paid
 """
-        owner_email_ok = send_email(OWNER_EMAIL, "New Paid Lesson Booking", owner_msg)
+    send_email(OWNER_EMAIL, "New Paid Lesson Booking", owner_msg)
 
-        student_msg = f"""
+    student_msg = f"""
 Hi {name},
 
 Your lesson has been booked successfully.
@@ -220,13 +218,7 @@ Email: {EMAIL_ADDRESS}
 
 See you then!
 """
-        student_email_ok = send_email(email, "Booking Confirmed", student_msg)
-
-        if owner_email_ok and student_email_ok:
-            c.execute("UPDATE bookings SET email_sent=1 WHERE checkout_session_id=?", (session_id,))
-            conn.commit()
-
-    conn.close()
+    send_email(email, "Booking Confirmed", student_msg)
 
     return render_template("success.html", day=day, time=time)
 
