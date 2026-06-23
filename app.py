@@ -13,7 +13,7 @@ OWNER_EMAIL = os.getenv("OWNER_EMAIL")
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
 
 MAIL_SERVER = os.getenv("MAIL_SERVER", "smtp.zoho.eu")
-MAIL_PORT = int(os.getenv("MAIL_PORT", 587))
+MAIL_PORT = int(os.getenv("MAIL_PORT", 465))
 
 stripe.api_key = STRIPE_SECRET_KEY
 
@@ -54,8 +54,7 @@ init_db()
 
 def send_email(to_email, subject, message):
     try:
-        server = smtplib.SMTP(MAIL_SERVER, MAIL_PORT, timeout=5)
-        server.starttls()
+        server = smtplib.SMTP_SSL(MAIL_SERVER, MAIL_PORT, timeout=10)
         server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
 
         email_text = f"""From: {EMAIL_ADDRESS}
