@@ -4,7 +4,6 @@ import os
 import smtplib
 import stripe
 from dotenv import load_dotenv
-from email.mime.text import MIMEText
 
 load_dotenv()
 
@@ -12,6 +11,9 @@ EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 OWNER_EMAIL = os.getenv("OWNER_EMAIL")
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
+
+MAIL_SERVER = os.getenv("MAIL_SERVER", "smtp.zoho.eu")
+MAIL_PORT = int(os.getenv("MAIL_PORT", 587))
 
 stripe.api_key = STRIPE_SECRET_KEY
 
@@ -52,13 +54,22 @@ init_db()
 
 def send_email(to_email, subject, message):
     try:
-        server = smtplib.SMTP("smtp.gmail.com", 587, timeout=20)
+        server = smtplib.SMTP(MAIL_SERVER, MAIL_PORT, timeout=5)
         server.starttls()
         server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-        server.sendmail(EMAIL_ADDRESS, to_email, f"Subject: {subject}\n\n{message}")
+
+        email_text = f"""From: {EMAIL_ADDRESS}
+To: {to_email}
+Subject: {subject}
+
+{message}
+"""
+
+        server.sendmail(EMAIL_ADDRESS, to_email, email_text)
         server.quit()
         return True
-    except Exception as e:
+
+    except BaseException as e:
         print("EMAIL ERROR:", e)
         return False
 
@@ -123,7 +134,7 @@ def book():
                 "quantity": 1,
             }
         ],
-        success_url="https://english-teacher-website-xe4z.onrender.com/success?session_id={CHECKOUT_SESSION_ID}" ,
+        success_url="https://english-teacher-website-xe4z.onrender.com/success?session_id={CHECKOUT_SESSION_ID}",
         cancel_url="https://english-teacher-website-xe4z.onrender.com/booking",
         metadata={
             "day": day,
@@ -177,7 +188,8 @@ def success():
         conn.commit()
 
     c.execute("SELECT email_sent FROM bookings WHERE checkout_session_id=?", (session_id,))
-    email_sent = c.fetchone()[0]
+    result = c.fetchone()
+    email_sent = result[0] if result else 0
 
     if email_sent == 0:
         owner_msg = f"""
@@ -190,7 +202,7 @@ Day: {day}
 Time: {time}
 Payment: £10 paid
 """
-        send_email(OWNER_EMAIL, "New Paid Lesson Booking", owner_msg)
+        owner_email_ok = send_email(OWNER_EMAIL, "New Paid Lesson Booking", owner_msg)
 
         student_msg = f"""
 Hi {name},
@@ -202,14 +214,15 @@ Time: {time}
 
 If you need anything or have any questions, please feel free to send me an email. I will try to reply as soon as possible.
 
-Email: michalisPaf@hotmail.com
+Email: {EMAIL_ADDRESS}
 
 See you then!
 """
-        send_email(email, "Booking Confirmed", student_msg)
+        student_email_ok = send_email(email, "Booking Confirmed", student_msg)
 
-        c.execute("UPDATE bookings SET email_sent=1 WHERE checkout_session_id=?", (session_id,))
-        conn.commit()
+        if owner_email_ok and student_email_ok:
+            c.execute("UPDATE bookings SET email_sent=1 WHERE checkout_session_id=?", (session_id,))
+            conn.commit()
 
     conn.close()
 
