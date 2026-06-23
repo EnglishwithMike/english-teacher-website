@@ -123,8 +123,8 @@ def book():
                 "quantity": 1,
             }
         ],
-        success_url="http://127.0.0.1:5000/success?session_id={CHECKOUT_SESSION_ID}",
-        cancel_url=f"http://127.0.0.1:5000/booking/{day}",
+        success_url="https://english-teacher-website-xe4z.onrender.com/success?session_id={CHECKOUT_SESSION_ID}" ,
+        cancel_url="https://english-teacher-website-xe4z.onrender.com/booking",
         metadata={
             "day": day,
             "time": time,
