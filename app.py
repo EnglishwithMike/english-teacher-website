@@ -156,6 +156,7 @@ def success():
     time = checkout_session.metadata["time"]
     name = checkout_session.metadata["name"]
     email = checkout_session.metadata["email"]
+    print("BOOKING EMAIL =", email)
     phone = checkout_session.metadata["phone"]
 
     conn = sqlite3.connect("bookings.db")
