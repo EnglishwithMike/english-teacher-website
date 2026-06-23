@@ -1,21 +1,20 @@
 from flask import Flask, render_template, request, redirect
 import sqlite3
 import os
-import smtplib
 import stripe
+import resend
 from dotenv import load_dotenv
 
 load_dotenv()
 
-EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 OWNER_EMAIL = os.getenv("OWNER_EMAIL")
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 
-MAIL_SERVER = os.getenv("MAIL_SERVER", "smtp.zoho.eu")
-MAIL_PORT = int(os.getenv("MAIL_PORT", 465))
+SENDER_EMAIL = os.getenv("SENDER_EMAIL", "onboarding@resend.dev")
 
 stripe.api_key = STRIPE_SECRET_KEY
+resend.api_key = RESEND_API_KEY
 
 app = Flask(__name__)
 
@@ -53,28 +52,17 @@ init_db()
 
 
 def send_email(to_email, subject, message):
-    print("MAIL_SERVER =", MAIL_SERVER)
-    print("MAIL_PORT =", MAIL_PORT)
-
     try:
-        server = smtplib.SMTP_SSL(MAIL_SERVER, MAIL_PORT, timeout=1)
-        server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-
-        email_text = f"""From: {EMAIL_ADDRESS}
-To: {to_email}
-Subject: {subject}
-
-{message}
-"""
-
-        server.sendmail(EMAIL_ADDRESS, to_email, email_text)
-        server.quit()
+        resend.Emails.send({
+            "from": f"English with Mike <{SENDER_EMAIL}>",
+            "to": [to_email],
+            "subject": subject,
+            "text": message,
+        })
         return True
 
-    except BaseException as e:
-        import traceback
-        print("EMAIL ERROR:", repr(e))
-        traceback.print_exc()
+    except Exception as e:
+        print("RESEND EMAIL ERROR:", repr(e))
         return False
 
 
@@ -202,7 +190,7 @@ Day: {day}
 Time: {time}
 Payment: £10 paid
 """
-    send_email(OWNER_EMAIL, "New Paid Lesson Booking", owner_msg)
+    owner_email_ok = send_email(OWNER_EMAIL, "New Paid Lesson Booking", owner_msg)
 
     student_msg = f"""
 Hi {name},
@@ -214,11 +202,18 @@ Time: {time}
 
 If you need anything or have any questions, please feel free to send me an email. I will try to reply as soon as possible.
 
-Email: {EMAIL_ADDRESS}
+Email: {OWNER_EMAIL}
 
 See you then!
 """
-    send_email(email, "Booking Confirmed", student_msg)
+    student_email_ok = send_email(email, "Booking Confirmed", student_msg)
+
+    if owner_email_ok and student_email_ok:
+        conn = sqlite3.connect("bookings.db")
+        c = conn.cursor()
+        c.execute("UPDATE bookings SET email_sent=1 WHERE checkout_session_id=?", (session_id,))
+        conn.commit()
+        conn.close()
 
     return render_template("success.html", day=day, time=time)
 
