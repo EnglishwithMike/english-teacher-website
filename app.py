@@ -192,6 +192,7 @@ Time: {time}
 Payment: £10 paid
 """
     owner_email_ok = send_email(OWNER_EMAIL, "New Paid Lesson Booking", owner_msg)
+    print("OWNER EMAIL OK =", owner_email_ok)
 
     student_msg = f"""
 Hi {name},
@@ -208,6 +209,7 @@ Email: {OWNER_EMAIL}
 See you then!
 """
     student_email_ok = send_email(email, "Booking Confirmed", student_msg)
+    print("STUDENT EMAIL OK =", student_email_ok)
 
     if owner_email_ok and student_email_ok:
         conn = sqlite3.connect("bookings.db")
