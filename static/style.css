@@ -11,10 +11,47 @@ body {
     font-size: 28px;
 }
 
+.main-container {
+    display: flex;
+    gap: 40px;
+    align-items: flex-start;
+    padding: 30px;
+}
+
+.left-column {
+    width: 280px;
+    background: white;
+    padding: 20px;
+    border-radius: 20px;
+    border: 5px solid #012169;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+}
+
+.profile-photo {
+    width: 100%;
+    border-radius: 15px;
+    display: block;
+}
+
+.bio {
+    margin-top: 20px;
+    text-align: left;
+}
+
+.bio h2 {
+    color: #012169;
+    margin-bottom: 10px;
+}
+
+.bio p {
+    font-size: 16px;
+    line-height: 1.5;
+}
+
 .hero {
     background: white;
     max-width: 800px;
-    margin: 80px auto;
+    flex: 1;
     padding: 50px;
     border-radius: 20px;
     text-align: center;
@@ -44,6 +81,7 @@ button {
 button:hover {
     background: #012169;
 }
+
 .calendar {
     width: 100%;
     border-collapse: collapse;
@@ -67,12 +105,6 @@ button:hover {
     color: white;
     font-weight: bold;
 }
-.booking-form {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    max-width: 400px;
-    margin: 30px auto;
 
 .booking-form {
     display: flex;
