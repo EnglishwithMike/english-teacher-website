@@ -6,10 +6,15 @@
 </head>
 <body>
 
-<div class="hero">
+<div class="booking-day-panel">
     <h1>{{ day.title() }}</h1>
 
-    <h3>Select a lesson time (10:00–17:00)</h3>
+    <h3>Select a lesson time</h3>
+
+    <p>
+        All bookings are saved in <strong>UK time</strong>.
+        Your local time is shown for convenience.
+    </p>
 
     <div class="day-grid">
         {% set times = ["10:00","11:00","12:00","13:00","14:00","15:00","16:00"] %}
@@ -21,7 +26,9 @@
                 </button>
             {% else %}
                 <button type="button" onclick="selectTime(this)" data-time="{{ t }}">
-                    {{ t }}
+                    <span class="uk-time">{{ t }} UK</span>
+                    <br>
+                    <small class="local-time" data-uk-time="{{ t }}"></small>
                 </button>
             {% endif %}
         {% endfor %}
@@ -30,6 +37,7 @@
     <h2>Booking Details</h2>
 
     <form class="booking-form" action="/book" method="POST">
+        <input type="hidden" name="teacher" value="{{ teacher }}">
         <input type="hidden" name="day" id="dayInput">
         <input type="hidden" name="time" id="timeInput">
 
@@ -42,14 +50,84 @@
         <label>Phone / WhatsApp (optional)</label><br>
         <input type="text" name="phone"><br><br>
 
-        <button type="submit">Book Lesson</button>
+        <button type="submit" onclick="return checkTimeSelected()">Book Lesson</button>
     </form>
 
     <br>
-    <a href="/booking">← Back to Calendar</a>
+
+    {% if teacher == "emily" %}
+        <a href="/booking/emily">← Back to Calendar</a>
+    {% else %}
+        <a href="/booking">← Back to Calendar</a>
+    {% endif %}
+
 </div>
 
 <script>
+const dayNames = {
+    "Monday": 1,
+    "Tuesday": 2,
+    "Wednesday": 3,
+    "Thursday": 4,
+    "Friday": 5
+};
+
+function getNextDateForDay(dayName) {
+    const today = new Date();
+    const targetDay = dayNames[dayName];
+    const todayDay = today.getDay();
+
+    let daysUntil = targetDay - todayDay;
+
+    if (daysUntil < 0) {
+        daysUntil += 7;
+    }
+
+    const targetDate = new Date(today);
+    targetDate.setDate(today.getDate() + daysUntil);
+    return targetDate;
+}
+
+function convertUkTimeToLocal(ukTime) {
+    const dayName = "{{ day }}";
+    const lessonDate = getNextDateForDay(dayName);
+
+    const year = lessonDate.getFullYear();
+    const month = String(lessonDate.getMonth() + 1).padStart(2, "0");
+    const date = String(lessonDate.getDate()).padStart(2, "0");
+
+    const ukDateTimeString = `${year}-${month}-${date}T${ukTime}:00`;
+
+    const ukFormatter = new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Europe/London",
+        timeZoneName: "shortOffset",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false
+    });
+
+    const parts = ukFormatter.formatToParts(new Date(ukDateTimeString));
+    const offsetPart = parts.find(part => part.type === "timeZoneName").value;
+
+    let offset = "+00:00";
+
+    if (offsetPart.includes("+1")) {
+        offset = "+01:00";
+    }
+
+    const ukDate = new Date(`${year}-${month}-${date}T${ukTime}:00${offset}`);
+
+    return ukDate.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit"
+    });
+}
+
+document.querySelectorAll(".local-time").forEach(item => {
+    const ukTime = item.getAttribute("data-uk-time");
+    item.textContent = convertUkTimeToLocal(ukTime) + " your time";
+});
+
 function selectTime(button) {
     document.querySelectorAll('.day-grid button').forEach(btn => {
         if (!btn.disabled) {
@@ -62,6 +140,14 @@ function selectTime(button) {
     button.style.color = 'white';
 
     document.getElementById("timeInput").value = button.getAttribute("data-time");
+}
+
+function checkTimeSelected() {
+    if (!document.getElementById("timeInput").value) {
+        alert("Please choose a lesson time first.");
+        return false;
+    }
+    return true;
 }
 
 document.getElementById("dayInput").value = "{{ day }}";

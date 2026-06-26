@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>English Lessons with Mike</title>
+    <title>Online Language Lessons</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -10,75 +10,29 @@
     🇬🇧 | 🇬🇷
 </div>
 
-<div class="main-container">
+<div class="home-panel"> 
 
-    <!-- LEFT COLUMN -->
-    <div class="left-column">
+    <h1>Choose Your Lesson</h1>
 
-        <img src="{{ url_for('static', filename='images/mike.jpg') }}"
-             alt="Mike"
-             class="profile-photo">
+    <p>Select the teacher you want to book with.</p>
 
-        <div class="bio">
-            <h2>About Me</h2>
+    <div class="teacher-cards">
 
-            <p>
-                Graduate teacher with experience specialising in teaching
-                English and Greek.
-            </p>
-
-            <p>
-                During my studies I volunteered in numerous schools,
-                gaining valuable classroom experience with learners of
-                different ages.
-            </p>
-
-            <p>
-                I also completed the internationally recognised Trinity
-                CertTESOL, where I taught university students and further
-                developed my teaching, lesson planning and classroom
-                management skills.
-            </p>
-
+        <div class="teacher-card">
+            <h2>🇬🇧 | 🇬🇷 Mike</h2>
+            <p>English Lesson with Mike</p>
+            <a href="/booking">
+                <button>Book English</button>
+            </a>
         </div>
 
-    </div>
-
-    <!-- RIGHT COLUMN -->
-    <div class="hero">
-
-        <h1>English Lessons with Mike</h1>
-
-        <p>
-            Personalised online English lessons via Zoom or Microsoft Teams.
-        </p>
-
-        <h2>Services</h2>
-
-        <p><strong>1-to-1 English Lesson:</strong> £10 per hour</p>
-
-        <p>
-            <strong>Task Help:</strong> £5 for specific tasks such as IELTS,
-            IGCSE, Advanced or Proficiency practice.
-        </p>
-
-        <h2>Book a Lesson</h2>
-
-        <p>
-            Pay to book your lesson. Contact me first if you have any questions.
-        </p>
-
-        <a href="/booking">
-            <button>Book Now</button>
-        </a>
-
-        <h2>Contact</h2>
-
-        <p>Email: michalisPaf@hotmail.com</p>
-
-        <p>Phone / WhatsApp: 07392745795</p>
-
-        <p>Lesson length: 60 minutes</p>
+        <div class="teacher-card">
+            <h2>🇪🇸 Emily</h2>
+            <p>Spanish Lesson with Emily</p>
+            <a href="/booking/emily">
+                <button>Book Spanish</button>
+            </a>
+        </div>
 
     </div>
 

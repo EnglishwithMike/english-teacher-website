@@ -1,5 +1,6 @@
 body {
     margin: 0;
+    min-height: 100vh;
     font-family: Arial, sans-serif;
     background: linear-gradient(135deg, #012169, #ffffff, #c8102e);
     color: #111;
@@ -11,11 +12,27 @@ body {
     font-size: 28px;
 }
 
+/* HOMEPAGE */
+.home-panel {
+    background: white;
+    width: 700px;
+    margin: 60px auto;
+    padding: 50px;
+    border-radius: 20px;
+    text-align: center;
+    border: 5px solid #012169;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+}
+
+/* PROFILE / BOOKING PAGE */
 .main-container {
     display: flex;
-    gap: 40px;
+    justify-content: center;
     align-items: flex-start;
+    gap: 40px;
     padding: 30px;
+    max-width: 1400px;
+    margin: 0 auto;
 }
 
 .left-column {
@@ -50,8 +67,8 @@ body {
 
 .hero {
     background: white;
-    max-width: 800px;
-    flex: 1;
+    width: 700px;
+    margin: 0;
     padding: 50px;
     border-radius: 20px;
     text-align: center;
@@ -66,6 +83,10 @@ h1 {
 
 p {
     font-size: 20px;
+}
+
+.teacher-card {
+    margin: 25px 0;
 }
 
 button {
@@ -126,4 +147,28 @@ button:hover {
     font-size: 16px;
     border: 2px solid #012169;
     border-radius: 8px;
+}
+/* BOOKING DAY PAGE */
+
+.booking-day-panel {
+    background: white;
+    width: 700px;
+    margin: 40px auto;
+    padding: 50px;
+    border-radius: 20px;
+    text-align: center;
+    border: 5px solid #012169;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+}
+/* SUCCESS PAGE */
+
+.success-panel {
+    background: white;
+    width: 700px;
+    margin: 60px auto;
+    padding: 50px;
+    border-radius: 20px;
+    text-align: center;
+    border: 5px solid #012169;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
 }
