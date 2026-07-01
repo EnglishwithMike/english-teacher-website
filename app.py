@@ -66,7 +66,7 @@ init_db()
 def send_email(to_email, subject, message):
     try:
         resend.Emails.send({
-            "from": f"English with Mike <{SENDER_EMAIL}>",
+            "from": f"LearningXY <{SENDER_EMAIL}>",
             "to": [to_email],
             "subject": subject,
             "text": message,
