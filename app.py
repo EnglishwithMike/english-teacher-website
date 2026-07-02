@@ -187,12 +187,15 @@ def success():
     if not session_id:
         return "No payment session found."
 
-    checkout_session = stripe.checkout.Session.retrieve(session_id)
+    checkout_session = stripe.checkout.Session.retrieve(
+        session_id,
+        expand=["metadata"]
+    )
 
     if checkout_session.payment_status != "paid":
         return "Payment not completed."
 
-    metadata = dict(checkout_session.metadata)
+    metadata = checkout_session["metadata"]
     teacher = metadata.get("teacher", "mike")
 
     if teacher not in TEACHERS:
