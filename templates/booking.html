@@ -42,7 +42,11 @@
 
         <p>{{ teacher_info.lesson_name }}</p>
 
+        {% if teacher == "emily" %}
+        <p>Select a day (Monday–Saturday)</p>
+        {% else %}
         <p>Select a day (Monday–Friday)</p>
+        {% endif %}
 
         {% if teacher == "mike" %}
         <p>
@@ -59,6 +63,7 @@
             <a href="/booking/emily/Wednesday">Wednesday</a>
             <a href="/booking/emily/Thursday">Thursday</a>
             <a href="/booking/emily/Friday">Friday</a>
+            <a href="/booking/emily/Saturday">Saturday</a>
         </p>
         {% endif %}
 

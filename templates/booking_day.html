@@ -17,9 +17,12 @@
     </p>
 
     <div class="day-grid">
-        {% if teacher == "emily" and day in ["Monday", "Tuesday", "Thursday"] %}
+        {% if teacher == "emily" and day == "Wednesday" %}
+    {% set times = ["10:00","11:00","12:00","13:00","14:00","15:00"] %}
+    {% set booked = times %}
+{% elif teacher == "emily" and day == "Thursday" %}
     {% set times = ["10:00","11:00","12:00","13:00","14:00"] %}
-{% elif teacher == "emily" and day in ["Friday", "Saturday"] %}
+{% elif teacher == "emily" and day in ["Monday", "Tuesday", "Friday", "Saturday"] %}
     {% set times = ["10:00","11:00","12:00","13:00","14:00","15:00"] %}
 {% else %}
     {% set times = ["10:00","11:00","12:00","13:00","14:00","15:00","16:00"] %}
