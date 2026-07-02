@@ -77,6 +77,17 @@ def send_email(to_email, subject, message):
         return False
 
 
+
+@app.route("/robots.txt")
+def robots_txt():
+    return app.send_static_file("robots.txt")
+
+
+@app.route("/sitemap.xml")
+def sitemap_xml():
+    return app.send_static_file("sitemap.xml")
+
+
 @app.route("/")
 def home():
     return render_template("index.html", teachers=TEACHERS)
