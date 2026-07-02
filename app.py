@@ -192,7 +192,8 @@ def success():
     if checkout_session.payment_status != "paid":
         return "Payment not completed."
 
-    teacher = checkout_session.metadata.get("teacher", "mike")
+    metadata = dict(checkout_session.metadata)
+    teacher = metadata.get("teacher", "mike")
 
     if teacher not in TEACHERS:
         teacher = "mike"
@@ -200,11 +201,11 @@ def success():
     teacher_name = TEACHERS[teacher]["name"]
     teacher_flag = TEACHERS[teacher]["flag"]
 
-    day = checkout_session.metadata["day"]
-    time = checkout_session.metadata["time"]
-    name = checkout_session.metadata["name"]
-    email = checkout_session.metadata["email"]
-    phone = checkout_session.metadata["phone"]
+    day = metadata["day"]
+    time = metadata["time"]
+    name = metadata["name"]
+    email = metadata["email"]
+    phone = metadata["phone"]
 
     conn = sqlite3.connect("bookings.db")
     c = conn.cursor()
