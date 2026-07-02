@@ -271,6 +271,9 @@ See you then!
 
     student_email_ok = send_email(email, "Booking Confirmed", student_msg)
 
+    print("OWNER EMAIL SENT:", owner_email_ok)
+    print("STUDENT EMAIL SENT:", student_email_ok)
+
     if owner_email_ok and student_email_ok:
         conn = sqlite3.connect("bookings.db")
         c = conn.cursor()
