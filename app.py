@@ -192,7 +192,7 @@ def success():
     if checkout_session.payment_status != "paid":
         return "Payment not completed."
 
-    metadata = checkout_session.metadata
+    metadata = checkout_session.metadata._data
     teacher = metadata.get("teacher", "mike")
 
     if teacher not in TEACHERS:
