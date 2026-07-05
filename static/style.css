@@ -172,3 +172,37 @@ button:hover {
     border: 5px solid #012169;
     box-shadow: 0 10px 30px rgba(0,0,0,0.25);
 }
+
+
+@media (max-width: 700px) {
+    .home-panel,
+    .hero,
+    .booking-day-panel,
+    .success-panel {
+        width: 90%;
+        max-width: 700px;
+        padding: 25px 15px;
+        margin: 30px auto;
+        box-sizing: border-box;
+    }
+
+    h1 {
+        font-size: 30px;
+        line-height: 1.2;
+    }
+
+    p {
+        font-size: 17px;
+    }
+
+    .language-switcher {
+        text-align: center;
+        font-size: 22px;
+        padding: 15px;
+    }
+
+    button {
+        font-size: 16px;
+        padding: 12px 24px;
+    }
+}
