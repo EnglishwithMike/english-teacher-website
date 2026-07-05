@@ -1,19 +1,19 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>{{ day.title() }} {{ t.book_your_lesson }}</title>
+    <title>{{ day.title() }} Booking</title>
     <link rel="stylesheet" href="/static/style.css">
-    {% include "posthog.html" %}
 </head>
 <body>
 
 <div class="booking-day-panel">
     <h1>{{ day.title() }}</h1>
 
-    <h3>{{ t.select_time }}</h3>
+    <h3>Select a lesson time</h3>
 
     <p>
-{{ t.uk_time_note }}
+        All bookings are saved in <strong>UK time</strong>.
+        Your local time is shown for convenience.
     </p>
 
     <div class="day-grid">
@@ -31,7 +31,7 @@
         {% for t in times %}
             {% if t in booked %}
                 <button type="button" disabled style="background:#012169; opacity:0.5; cursor:not-allowed;">
-                    {{ t.booked }}
+                    Booked
                 </button>
             {% else %}
                 <button type="button" onclick="selectTime(this)" data-time="{{ t }}">
@@ -43,32 +43,31 @@
         {% endfor %}
     </div>
 
-    <h2>{{ t.booking_details }}</h2>
+    <h2>Booking Details</h2>
 
-    <form class="booking-form" action="/book" method="POST" onsubmit="return trackBookingSubmit()">
+    <form class="booking-form" action="/book" method="POST">
         <input type="hidden" name="teacher" value="{{ teacher }}">
-        <input type="hidden" name="lang" value="{{ lang }}">
         <input type="hidden" name="day" id="dayInput">
         <input type="hidden" name="time" id="timeInput">
 
-        <label>{{ t.your_name }}</label><br>
+        <label>Your Name</label><br>
         <input type="text" name="name" required><br><br>
 
-        <label>{{ t.email }}</label><br>
+        <label>Email</label><br>
         <input type="email" name="email" required><br><br>
 
-        <label>{{ t.phone }}</label><br>
+        <label>Phone / WhatsApp (optional)</label><br>
         <input type="text" name="phone"><br><br>
 
-        <button type="submit">{{ t.book_lesson }}</button>
+        <button type="submit" onclick="return checkTimeSelected()">Book Lesson</button>
     </form>
 
     <br>
 
     {% if teacher == "emily" %}
-        <a href="/booking/emily?lang={{ lang }}">{{ t.back_calendar }}</a>
+        <a href="/booking/emily">← Back to Calendar</a>
     {% else %}
-        <a href="/booking?lang={{ lang }}">{{ t.back_calendar }}</a>
+        <a href="/booking">← Back to Calendar</a>
     {% endif %}
 
 </div>
@@ -136,7 +135,7 @@ function convertUkTimeToLocal(ukTime) {
 
 document.querySelectorAll(".local-time").forEach(item => {
     const ukTime = item.getAttribute("data-uk-time");
-    item.textContent = convertUkTimeToLocal(ukTime) + " {{ t.your_time }}";
+    item.textContent = convertUkTimeToLocal(ukTime) + " your time";
 });
 
 function selectTime(button) {
@@ -150,35 +149,12 @@ function selectTime(button) {
     button.style.background = '#012169';
     button.style.color = 'white';
 
-    const selectedTime = button.getAttribute("data-time");
-    document.getElementById("timeInput").value = selectedTime;
-
-    posthog.capture('time_selected', {
-        teacher: '{{ teacher }}',
-        day: '{{ day }}',
-        time: selectedTime,
-        lang: '{{ lang }}'
-    });
-}
-
-function trackBookingSubmit() {
-    if (!checkTimeSelected()) {
-        return false;
-    }
-
-    posthog.capture('booking_form_submitted', {
-        teacher: '{{ teacher }}',
-        day: '{{ day }}',
-        time: document.getElementById("timeInput").value,
-        lang: '{{ lang }}'
-    });
-
-    return true;
+    document.getElementById("timeInput").value = button.getAttribute("data-time");
 }
 
 function checkTimeSelected() {
     if (!document.getElementById("timeInput").value) {
-        alert("{{ t.choose_time_alert }}");
+        alert("Please choose a lesson time first.");
         return false;
     }
     return true;

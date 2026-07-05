@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <link rel="stylesheet" href="/static/style.css">
+    {% include "posthog.html" %}
 </head>
 <body>
 
@@ -27,7 +28,7 @@
             <h2>🇬🇧 Mike</h2>
             <p>{{ t.english_lessons }}</p>
             <a href="/booking?lang={{ lang }}">
-                <button>{{ t.book_english }}</button>
+                <button onclick="posthog.capture('book_english_clicked')">{{ t.book_english }}</button>
             </a>
         </div>
 
@@ -35,7 +36,7 @@
             <h2>🇬🇷 Michalis</h2>
             <p>{{ t.greek_lessons }}</p>
             <a href="/booking/michalis?lang={{ lang }}">
-                <button>{{ t.book_greek }}</button>
+                <button onclick="posthog.capture('book_greek_clicked')">{{ t.book_greek }}</button>
             </a>
         </div>
 
@@ -43,7 +44,7 @@
             <h2>🇪🇸 Emily</h2>
             <p>{{ t.spanish_lessons }}</p>
             <a href="/booking/emily?lang={{ lang }}">
-                <button>{{ t.book_spanish }}</button>
+                <button onclick="posthog.capture('book_spanish_clicked')">{{ t.book_spanish }}</button>
             </a>
         </div>
 

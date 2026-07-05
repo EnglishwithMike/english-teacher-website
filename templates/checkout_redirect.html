@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Redirecting to payment...</title>
+    {% include "posthog.html" %}
+</head>
+<body>
+    <p>Redirecting to secure payment...</p>
+
+    <script>
+        posthog.capture('stripe_checkout_started', {
+            teacher: '{{ teacher }}',
+            day: '{{ day }}',
+            time: '{{ time }}',
+            lang: '{{ lang }}'
+        });
+
+        setTimeout(function() {
+            window.location.href = "{{ checkout_url }}";
+        }, 500);
+    </script>
+</body>
+</html>

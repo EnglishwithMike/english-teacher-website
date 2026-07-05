@@ -3,6 +3,7 @@
 <head>
     <title>{{ t.confirmed }}</title>
     <link rel="stylesheet" href="/static/style.css">
+    {% include "posthog.html" %}
 </head>
 <body>
 
@@ -29,6 +30,16 @@
     <a href="/?lang={{ lang }}">{{ t.return_home }}</a>
 
 </div>
+
+
+<script>
+    posthog.capture('booking_completed', {
+        teacher: '{{ teacher }}',
+        day: '{{ day }}',
+        time: '{{ time }}',
+        lang: '{{ lang }}'
+    });
+</script>
 
 </body>
 </html>

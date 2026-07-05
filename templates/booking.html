@@ -3,6 +3,7 @@
 <head>
     <title>{{ t.book_your_lesson }}</title>
     <link rel="stylesheet" href="/static/style.css">
+    {% include "posthog.html" %}
 </head>
 <body>
 
@@ -54,21 +55,21 @@
 
         {% if teacher == "mike" %}
         <p>
-            <a href="/booking/Monday?lang={{ lang }}">Monday</a>
-            <a href="/booking/Tuesday?lang={{ lang }}">Tuesday</a>
-            <a href="/booking/Wednesday?lang={{ lang }}">Wednesday</a>
-            <a href="/booking/Thursday?lang={{ lang }}">Thursday</a>
-            <a href="/booking/Friday?lang={{ lang }}">Friday</a>
+            <a onclick="posthog.capture('day_selected', {teacher: 'mike', day: 'Monday', lang: '{{ lang }}'})" href="/booking/Monday?lang={{ lang }}">Monday</a>
+            <a onclick="posthog.capture('day_selected', {teacher: 'mike', day: 'Tuesday', lang: '{{ lang }}'})" href="/booking/Tuesday?lang={{ lang }}">Tuesday</a>
+            <a onclick="posthog.capture('day_selected', {teacher: 'mike', day: 'Wednesday', lang: '{{ lang }}'})" href="/booking/Wednesday?lang={{ lang }}">Wednesday</a>
+            <a onclick="posthog.capture('day_selected', {teacher: 'mike', day: 'Thursday', lang: '{{ lang }}'})" href="/booking/Thursday?lang={{ lang }}">Thursday</a>
+            <a onclick="posthog.capture('day_selected', {teacher: 'mike', day: 'Friday', lang: '{{ lang }}'})" href="/booking/Friday?lang={{ lang }}">Friday</a>
         </p>
         {% else %}
         <p>
-            <a href="/booking/{{ teacher }}/Monday?lang={{ lang }}">Monday</a>
-            <a href="/booking/{{ teacher }}/Tuesday?lang={{ lang }}">Tuesday</a>
-            <a href="/booking/{{ teacher }}/Wednesday?lang={{ lang }}">Wednesday</a>
-            <a href="/booking/{{ teacher }}/Thursday?lang={{ lang }}">Thursday</a>
-            <a href="/booking/{{ teacher }}/Friday?lang={{ lang }}">Friday</a>
+            <a onclick="posthog.capture('day_selected', {teacher: '{{ teacher }}', day: 'Monday', lang: '{{ lang }}'})" href="/booking/{{ teacher }}/Monday?lang={{ lang }}">Monday</a>
+            <a onclick="posthog.capture('day_selected', {teacher: '{{ teacher }}', day: 'Tuesday', lang: '{{ lang }}'})" href="/booking/{{ teacher }}/Tuesday?lang={{ lang }}">Tuesday</a>
+            <a onclick="posthog.capture('day_selected', {teacher: '{{ teacher }}', day: 'Wednesday', lang: '{{ lang }}'})" href="/booking/{{ teacher }}/Wednesday?lang={{ lang }}">Wednesday</a>
+            <a onclick="posthog.capture('day_selected', {teacher: '{{ teacher }}', day: 'Thursday', lang: '{{ lang }}'})" href="/booking/{{ teacher }}/Thursday?lang={{ lang }}">Thursday</a>
+            <a onclick="posthog.capture('day_selected', {teacher: '{{ teacher }}', day: 'Friday', lang: '{{ lang }}'})" href="/booking/{{ teacher }}/Friday?lang={{ lang }}">Friday</a>
             {% if teacher == "emily" %}
-            <a href="/booking/{{ teacher }}/Saturday?lang={{ lang }}">Saturday</a>
+            <a onclick="posthog.capture('day_selected', {teacher: '{{ teacher }}', day: 'Saturday', lang: '{{ lang }}'})" href="/booking/{{ teacher }}/Saturday?lang={{ lang }}">Saturday</a>
             {% endif %}
         </p>
         {% endif %}
