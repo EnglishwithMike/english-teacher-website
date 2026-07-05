@@ -27,6 +27,11 @@ TEACHERS = {
         "name": "Emily",
         "flag": "🇪🇸",
         "lesson_name": "Spanish Lesson with Emily",
+    },
+    "michalis": {
+        "name": "Michalis",
+        "flag": "🇬🇷",
+        "lesson_name": "Greek Lesson with Michalis",
     }
 }
 
@@ -103,6 +108,11 @@ def booking_emily():
     return render_template("booking.html", teacher="emily", teacher_info=TEACHERS["emily"])
 
 
+@app.route("/booking/michalis")
+def booking_michalis():
+    return render_template("booking.html", teacher="michalis", teacher_info=TEACHERS["michalis"])
+
+
 @app.route("/booking/<day>")
 def booking_day(day):
     return show_booking_day("mike", day)
@@ -111,6 +121,11 @@ def booking_day(day):
 @app.route("/booking/emily/<day>")
 def booking_day_emily(day):
     return show_booking_day("emily", day)
+
+
+@app.route("/booking/michalis/<day>")
+def booking_day_michalis(day):
+    return show_booking_day("michalis", day)
 
 
 def show_booking_day(teacher, day):
@@ -177,7 +192,7 @@ def book():
             }
         ],
         success_url="https://english-teacher-website-xe4z.onrender.com/success?session_id={CHECKOUT_SESSION_ID}",
-        cancel_url=f"https://english-teacher-website-xe4z.onrender.com/booking/{'emily' if teacher == 'emily' else ''}",
+        cancel_url=f"https://english-teacher-website-xe4z.onrender.com/booking/{teacher if teacher != 'mike' else ''}",
         metadata={
             "teacher": teacher,
             "day": day,
