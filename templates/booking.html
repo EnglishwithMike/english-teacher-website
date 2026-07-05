@@ -1,13 +1,15 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Book a Lesson</title>
+    <title>{{ t.book_your_lesson }}</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 
 <div class="language-switcher">
-    🇬🇧 | 🇬🇷
+    <a href="{{ request.path }}?lang=en">🇬🇧</a> |
+    <a href="{{ request.path }}?lang=el">🇬🇷</a> |
+    <a href="{{ request.path }}?lang=es">🇪🇸</a>
 </div>
 
 <div class="main-container">
@@ -19,16 +21,18 @@
              class="profile-photo">
 
         <div class="bio">
-            <h2>About {{ teacher_info.name }}</h2>
-{% if teacher == "mike" %}
-<p><strong>🇬🇧 English &nbsp; | &nbsp; 🇬🇷 Greek</strong></p>
-{% endif %}
+            <h2>{{ t.about }} {{ teacher_info.name }}</h2>
 
             {% if teacher == "mike" %}
-            <p>Graduate teacher with experience specialising in teaching English and Greek.</p>
+            <p><strong>🇬🇧 English</strong></p>
+            <p>Graduate teacher with experience specialising in teaching English.</p>
             <p>During my studies I volunteered in numerous schools, gaining valuable classroom experience with learners of different ages.</p>
             <p>I also completed the internationally recognised Trinity CertTESOL, where I taught university students and further developed my teaching, lesson planning and classroom management skills.</p>
+            {% elif teacher == "michalis" %}
+            <p><strong>🇬🇷 Greek</strong></p>
+            <p>Greek teacher offering personalised online Greek lessons for learners who want to build confidence and communicate clearly.</p>
             {% else %}
+            <p><strong>🇪🇸 Spanish</strong></p>
             <p>Spanish teacher offering personalised online Spanish lessons.</p>
             <p>Lessons are designed to help students build confidence, improve communication skills and practise useful Spanish for real situations.</p>
             {% endif %}
@@ -38,36 +42,38 @@
 
     <div class="hero">
 
-        <h1>Book Your Lesson</h1>
+        <h1>{{ t.book_your_lesson }}</h1>
 
         <p>{{ teacher_info.lesson_name }}</p>
 
         {% if teacher == "emily" %}
-        <p>Select a day (Monday–Saturday)</p>
+        <p>{{ t.select_day_ms }}</p>
         {% else %}
-        <p>Select a day (Monday–Friday)</p>
+        <p>{{ t.select_day_mf }}</p>
         {% endif %}
 
         {% if teacher == "mike" %}
         <p>
-            <a href="/booking/Monday">Monday</a>
-            <a href="/booking/Tuesday">Tuesday</a>
-            <a href="/booking/Wednesday">Wednesday</a>
-            <a href="/booking/Thursday">Thursday</a>
-            <a href="/booking/Friday">Friday</a>
+            <a href="/booking/Monday?lang={{ lang }}">Monday</a>
+            <a href="/booking/Tuesday?lang={{ lang }}">Tuesday</a>
+            <a href="/booking/Wednesday?lang={{ lang }}">Wednesday</a>
+            <a href="/booking/Thursday?lang={{ lang }}">Thursday</a>
+            <a href="/booking/Friday?lang={{ lang }}">Friday</a>
         </p>
         {% else %}
         <p>
-            <a href="/booking/emily/Monday">Monday</a>
-            <a href="/booking/emily/Tuesday">Tuesday</a>
-            <a href="/booking/emily/Wednesday">Wednesday</a>
-            <a href="/booking/emily/Thursday">Thursday</a>
-            <a href="/booking/emily/Friday">Friday</a>
-            <a href="/booking/emily/Saturday">Saturday</a>
+            <a href="/booking/{{ teacher }}/Monday?lang={{ lang }}">Monday</a>
+            <a href="/booking/{{ teacher }}/Tuesday?lang={{ lang }}">Tuesday</a>
+            <a href="/booking/{{ teacher }}/Wednesday?lang={{ lang }}">Wednesday</a>
+            <a href="/booking/{{ teacher }}/Thursday?lang={{ lang }}">Thursday</a>
+            <a href="/booking/{{ teacher }}/Friday?lang={{ lang }}">Friday</a>
+            {% if teacher == "emily" %}
+            <a href="/booking/{{ teacher }}/Saturday?lang={{ lang }}">Saturday</a>
+            {% endif %}
         </p>
         {% endif %}
 
-        <a href="/">Back to homepage</a>
+        <a href="/?lang={{ lang }}">{{ t.back_home }}</a>
 
     </div>
 

@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>{{ day.title() }} Booking</title>
+    <title>{{ day.title() }} {{ t.book_your_lesson }}</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -9,11 +9,10 @@
 <div class="booking-day-panel">
     <h1>{{ day.title() }}</h1>
 
-    <h3>Select a lesson time</h3>
+    <h3>{{ t.select_time }}</h3>
 
     <p>
-        All bookings are saved in <strong>UK time</strong>.
-        Your local time is shown for convenience.
+{{ t.uk_time_note }}
     </p>
 
     <div class="day-grid">
@@ -31,7 +30,7 @@
         {% for t in times %}
             {% if t in booked %}
                 <button type="button" disabled style="background:#012169; opacity:0.5; cursor:not-allowed;">
-                    Booked
+                    {{ t.booked }}
                 </button>
             {% else %}
                 <button type="button" onclick="selectTime(this)" data-time="{{ t }}">
@@ -43,31 +42,32 @@
         {% endfor %}
     </div>
 
-    <h2>Booking Details</h2>
+    <h2>{{ t.booking_details }}</h2>
 
     <form class="booking-form" action="/book" method="POST">
         <input type="hidden" name="teacher" value="{{ teacher }}">
+        <input type="hidden" name="lang" value="{{ lang }}">
         <input type="hidden" name="day" id="dayInput">
         <input type="hidden" name="time" id="timeInput">
 
-        <label>Your Name</label><br>
+        <label>{{ t.your_name }}</label><br>
         <input type="text" name="name" required><br><br>
 
-        <label>Email</label><br>
+        <label>{{ t.email }}</label><br>
         <input type="email" name="email" required><br><br>
 
-        <label>Phone / WhatsApp (optional)</label><br>
+        <label>{{ t.phone }}</label><br>
         <input type="text" name="phone"><br><br>
 
-        <button type="submit" onclick="return checkTimeSelected()">Book Lesson</button>
+        <button type="submit" onclick="return checkTimeSelected()">{{ t.book_lesson }}</button>
     </form>
 
     <br>
 
     {% if teacher == "emily" %}
-        <a href="/booking/emily">← Back to Calendar</a>
+        <a href="/booking/emily?lang={{ lang }}">{{ t.back_calendar }}</a>
     {% else %}
-        <a href="/booking">← Back to Calendar</a>
+        <a href="/booking?lang={{ lang }}">{{ t.back_calendar }}</a>
     {% endif %}
 
 </div>
@@ -135,7 +135,7 @@ function convertUkTimeToLocal(ukTime) {
 
 document.querySelectorAll(".local-time").forEach(item => {
     const ukTime = item.getAttribute("data-uk-time");
-    item.textContent = convertUkTimeToLocal(ukTime) + " your time";
+    item.textContent = convertUkTimeToLocal(ukTime) + " {{ t.your_time }}";
 });
 
 function selectTime(button) {
@@ -154,7 +154,7 @@ function selectTime(button) {
 
 function checkTimeSelected() {
     if (!document.getElementById("timeInput").value) {
-        alert("Please choose a lesson time first.");
+        alert("{{ t.choose_time_alert }}");
         return false;
     }
     return true;

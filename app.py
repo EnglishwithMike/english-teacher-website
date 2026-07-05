@@ -35,6 +35,112 @@ TEACHERS = {
     }
 }
 
+TRANSLATIONS = {
+    "en": {
+        "slogan": "Learning in every direction.",
+        "english_lessons": "English Lessons",
+        "greek_lessons": "Greek Lessons",
+        "spanish_lessons": "Spanish Lessons",
+        "book_english": "Book English",
+        "book_greek": "Book Greek",
+        "book_spanish": "Book Spanish",
+        "book_your_lesson": "Book Your Lesson",
+        "select_day_mf": "Select a day (Monday–Friday)",
+        "select_day_ms": "Select a day (Monday–Saturday)",
+        "back_home": "Back to homepage",
+        "about": "About",
+        "select_time": "Select a lesson time",
+        "uk_time_note": "All bookings are saved in UK time. Your local time is shown for convenience.",
+        "booked": "Booked",
+        "booking_details": "Booking Details",
+        "your_name": "Your Name",
+        "email": "Email",
+        "phone": "Phone / WhatsApp (optional)",
+        "book_lesson": "Book Lesson",
+        "back_calendar": "← Back to Calendar",
+        "your_time": "your time",
+        "choose_time_alert": "Please choose a lesson time first.",
+        "congrats": "🎉 Congratulations!",
+        "confirmed": "Your booking is confirmed",
+        "booked_for": "You are booked for:",
+        "day": "Day",
+        "time": "Time",
+        "contact_text": "If you need anything beforehand or have any questions, feel free to contact me:",
+        "return_home": "Return to Homepage",
+    },
+    "el": {
+        "slogan": "Μάθηση προς κάθε κατεύθυνση.",
+        "english_lessons": "Μαθήματα Αγγλικών",
+        "greek_lessons": "Μαθήματα Ελληνικών",
+        "spanish_lessons": "Μαθήματα Ισπανικών",
+        "book_english": "Κλείσε Αγγλικά",
+        "book_greek": "Κλείσε Ελληνικά",
+        "book_spanish": "Κλείσε Ισπανικά",
+        "book_your_lesson": "Κλείσε το μάθημά σου",
+        "select_day_mf": "Επίλεξε ημέρα (Δευτέρα–Παρασκευή)",
+        "select_day_ms": "Επίλεξε ημέρα (Δευτέρα–Σάββατο)",
+        "back_home": "Πίσω στην αρχική σελίδα",
+        "about": "Σχετικά με",
+        "select_time": "Επίλεξε ώρα μαθήματος",
+        "uk_time_note": "Όλες οι κρατήσεις αποθηκεύονται σε ώρα Ηνωμένου Βασιλείου. Η τοπική σου ώρα εμφανίζεται για ευκολία.",
+        "booked": "Κλεισμένο",
+        "booking_details": "Στοιχεία κράτησης",
+        "your_name": "Το όνομά σου",
+        "email": "Email",
+        "phone": "Τηλέφωνο / WhatsApp (προαιρετικό)",
+        "book_lesson": "Κλείσε μάθημα",
+        "back_calendar": "← Πίσω στο ημερολόγιο",
+        "your_time": "η ώρα σου",
+        "choose_time_alert": "Παρακαλώ επίλεξε πρώτα ώρα μαθήματος.",
+        "congrats": "🎉 Συγχαρητήρια!",
+        "confirmed": "Η κράτησή σου επιβεβαιώθηκε",
+        "booked_for": "Έχεις κράτηση για:",
+        "day": "Ημέρα",
+        "time": "Ώρα",
+        "contact_text": "Αν χρειάζεσαι κάτι πριν το μάθημα ή έχεις ερωτήσεις, μπορείς να επικοινωνήσεις μαζί μου:",
+        "return_home": "Επιστροφή στην αρχική σελίδα",
+    },
+    "es": {
+        "slogan": "Aprendizaje en todas las direcciones.",
+        "english_lessons": "Clases de inglés",
+        "greek_lessons": "Clases de griego",
+        "spanish_lessons": "Clases de español",
+        "book_english": "Reservar inglés",
+        "book_greek": "Reservar griego",
+        "book_spanish": "Reservar español",
+        "book_your_lesson": "Reserva tu clase",
+        "select_day_mf": "Elige un día (lunes–viernes)",
+        "select_day_ms": "Elige un día (lunes–sábado)",
+        "back_home": "Volver a la página principal",
+        "about": "Sobre",
+        "select_time": "Elige una hora para la clase",
+        "uk_time_note": "Todas las reservas se guardan en horario del Reino Unido. Tu hora local se muestra para ayudarte.",
+        "booked": "Reservado",
+        "booking_details": "Datos de la reserva",
+        "your_name": "Tu nombre",
+        "email": "Email",
+        "phone": "Teléfono / WhatsApp (opcional)",
+        "book_lesson": "Reservar clase",
+        "back_calendar": "← Volver al calendario",
+        "your_time": "tu hora",
+        "choose_time_alert": "Por favor, elige primero una hora para la clase.",
+        "congrats": "🎉 ¡Felicidades!",
+        "confirmed": "Tu reserva está confirmada",
+        "booked_for": "Has reservado:",
+        "day": "Día",
+        "time": "Hora",
+        "contact_text": "Si necesitas algo antes de la clase o tienes alguna pregunta, puedes contactarme:",
+        "return_home": "Volver a la página principal",
+    }
+}
+
+def get_lang():
+    lang = request.args.get("lang", "en")
+    if lang not in TRANSLATIONS:
+        lang = "en"
+    return lang
+
+
 
 def init_db():
     conn = sqlite3.connect("bookings.db")
@@ -95,22 +201,26 @@ def sitemap_xml():
 
 @app.route("/")
 def home():
-    return render_template("index.html", teachers=TEACHERS)
+    lang = get_lang()
+    return render_template("index.html", teachers=TEACHERS, lang=lang, t=TRANSLATIONS[lang])
 
 
 @app.route("/booking")
 def booking():
-    return render_template("booking.html", teacher="mike", teacher_info=TEACHERS["mike"])
+    lang = get_lang()
+    return render_template("booking.html", teacher="mike", teacher_info=TEACHERS["mike"], lang=lang, t=TRANSLATIONS[lang])
 
 
 @app.route("/booking/emily")
 def booking_emily():
-    return render_template("booking.html", teacher="emily", teacher_info=TEACHERS["emily"])
+    lang = get_lang()
+    return render_template("booking.html", teacher="emily", teacher_info=TEACHERS["emily"], lang=lang, t=TRANSLATIONS[lang])
 
 
 @app.route("/booking/michalis")
 def booking_michalis():
-    return render_template("booking.html", teacher="michalis", teacher_info=TEACHERS["michalis"])
+    lang = get_lang()
+    return render_template("booking.html", teacher="michalis", teacher_info=TEACHERS["michalis"], lang=lang, t=TRANSLATIONS[lang])
 
 
 @app.route("/booking/<day>")
@@ -129,6 +239,7 @@ def booking_day_michalis(day):
 
 
 def show_booking_day(teacher, day):
+    lang = get_lang()
     conn = sqlite3.connect("bookings.db")
     c = conn.cursor()
 
@@ -142,7 +253,9 @@ def show_booking_day(teacher, day):
         day=day,
         booked=booked_times,
         teacher=teacher,
-        teacher_info=TEACHERS[teacher]
+        teacher_info=TEACHERS[teacher],
+        lang=lang,
+        t=TRANSLATIONS[lang]
     )
 
 
@@ -158,6 +271,9 @@ def book():
     name = request.form["name"]
     email = request.form["email"]
     phone = request.form["phone"]
+    lang = request.form.get("lang", "en")
+    if lang not in TRANSLATIONS:
+        lang = "en"
 
     if not time:
         return "Please choose a lesson time."
@@ -200,6 +316,7 @@ def book():
             "name": name,
             "email": email,
             "phone": phone,
+            "lang": lang,
         },
     )
 
@@ -220,6 +337,9 @@ def success():
 
     metadata = checkout_session.metadata._data
     teacher = metadata.get("teacher", "mike")
+    lang = metadata.get("lang", "en")
+    if lang not in TRANSLATIONS:
+        lang = "en"
 
     if teacher not in TEACHERS:
         teacher = "mike"
@@ -304,7 +424,7 @@ See you then!
         conn.commit()
         conn.close()
 
-    return render_template("success.html", day=day, time=time, teacher_info=TEACHERS[teacher])
+    return render_template("success.html", day=day, time=time, teacher_info=TEACHERS[teacher], lang=lang, t=TRANSLATIONS[lang])
 
 @app.route("/success-preview")
 def success_preview():
@@ -312,7 +432,9 @@ def success_preview():
         "success.html",
         day="Monday",
         time="10:00",
-        teacher_info=TEACHERS["mike"]
+        teacher_info=TEACHERS["mike"],
+        lang="en",
+        t=TRANSLATIONS["en"]
     )
 
 

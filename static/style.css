@@ -206,3 +206,14 @@ button:hover {
         padding: 12px 24px;
     }
 }
+
+
+.language-switcher a {
+    text-decoration: none;
+    font-size: 30px;
+    margin: 0 4px;
+}
+
+.language-switcher a:hover {
+    opacity: 0.8;
+}
