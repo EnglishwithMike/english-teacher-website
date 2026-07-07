@@ -167,6 +167,12 @@ def init_db():
         except sqlite3.OperationalError:
             pass
 
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS free_lessons (
+            email TEXT PRIMARY KEY
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -240,13 +246,22 @@ def booking_day_michalis(day):
 
 def show_booking_day(teacher, day):
     lang = get_lang()
-    conn = sqlite3.connect("bookings.db")
-    c = conn.cursor()
 
-    c.execute("SELECT time FROM bookings WHERE teacher=? AND day=?", (teacher, day))
-    booked_times = [row[0] for row in c.fetchall()]
+    # TEMPORARY: this Wednesday is fully booked
+    if day == "Wednesday":
+        booked_times = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"]
+    else:
+        conn = sqlite3.connect("bookings.db")
+        c = conn.cursor()
 
-    conn.close()
+        # Mike and Michalis are the same person, so their bookings share availability
+        if teacher in ["mike", "michalis"]:
+            c.execute("SELECT time FROM bookings WHERE teacher IN ('mike', 'michalis') AND day=?", (day,))
+        else:
+            c.execute("SELECT time FROM bookings WHERE teacher=? AND day=?", (teacher, day))
+
+        booked_times = [row[0] for row in c.fetchall()]
+        conn.close()
 
     return render_template(
         "booking_day.html",
@@ -281,16 +296,78 @@ def book():
     conn = sqlite3.connect("bookings.db")
     c = conn.cursor()
 
-    c.execute(
-        "SELECT * FROM bookings WHERE teacher=? AND day=? AND time=?",
-        (teacher, day, time)
-    )
+    if teacher in ["mike", "michalis"]:
+        c.execute(
+            "SELECT * FROM bookings WHERE teacher IN ('mike', 'michalis') AND day=? AND time=?",
+            (day, time)
+        )
+    else:
+        c.execute(
+            "SELECT * FROM bookings WHERE teacher=? AND day=? AND time=?",
+            (teacher, day, time)
+        )
+
     exists = c.fetchone()
+
+    c.execute("SELECT email FROM free_lessons WHERE lower(email)=lower(?)", (email,))
+    previous_booking = c.fetchone()
 
     conn.close()
 
     if exists:
         return "This slot is already booked."
+
+    # First lesson is free
+    if teacher in ["mike", "michalis"] and not previous_booking:
+        conn = sqlite3.connect("bookings.db")
+        c = conn.cursor()
+        c.execute("""
+            INSERT INTO bookings (teacher, day, time, name, email, phone, checkout_session_id, email_sent)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (teacher, day, time, name, email, phone, "FREE_FIRST_LESSON", 0))
+
+        c.execute("INSERT OR IGNORE INTO free_lessons (email) VALUES (?)", (email.lower(),))
+
+        conn.commit()
+        conn.close()
+
+        teacher_name = TEACHERS[teacher]["name"]
+        teacher_flag = TEACHERS[teacher]["flag"]
+
+        send_email(
+            OWNER_EMAIL,
+            f"New Free First Lesson Booking for {teacher_name}",
+            f"""New FREE first lesson booking received:
+
+Teacher: {teacher_name} {teacher_flag}
+Student name: {name}
+Student email: {email}
+Student phone: {phone}
+Day: {day}
+Time: {time}
+Payment: Free first lesson
+"""
+        )
+
+        send_email(
+            email,
+            "Free First Lesson Booking Confirmed",
+            f"""Hi {name},
+
+Your free first lesson with {teacher_name} {teacher_flag} has been booked successfully.
+
+Day: {day}
+Time: {time}
+
+If you need anything or have any questions, please send an email here:
+
+Email: {OWNER_EMAIL}
+
+See you then!
+"""
+        )
+
+        return render_template("success.html", day=day, time=time, teacher=teacher, teacher_info=TEACHERS[teacher], lang=lang, t=TRANSLATIONS[lang])
 
     checkout_session = stripe.checkout.Session.create(
         payment_method_types=["card"],
@@ -366,10 +443,17 @@ def success():
     c.execute("SELECT * FROM bookings WHERE checkout_session_id=?", (session_id,))
     already_saved = c.fetchone()
 
-    c.execute(
-        "SELECT * FROM bookings WHERE teacher=? AND day=? AND time=?",
-        (teacher, day, time)
-    )
+    if teacher in ["mike", "michalis"]:
+        c.execute(
+            "SELECT * FROM bookings WHERE teacher IN ('mike', 'michalis') AND day=? AND time=?",
+            (day, time)
+        )
+    else:
+        c.execute(
+            "SELECT * FROM bookings WHERE teacher=? AND day=? AND time=?",
+            (teacher, day, time)
+        )
+
     slot_taken = c.fetchone()
 
     if slot_taken and not already_saved:
