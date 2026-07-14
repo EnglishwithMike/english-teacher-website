@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>LearningXY</title>
+    <title>LearningXY | Learn in Every Direction</title>
     <meta name="description" content="Online English, Greek and Spanish lessons with LearningXY. Book one-to-one language lessons online.">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
@@ -16,45 +16,82 @@
     <a href="/?lang=es">🇪🇸</a>
 </div>
 
-<div class="home-panel"> 
+<main class="homepage-layout">
 
-    <h1>LearningXY</h1>
+    <header class="homepage-header">
+        <h1>LearningXY</h1>
+        <p><strong>{{ t.slogan }}</strong></p>
 
-    <p><strong>{{ t.slogan }}</strong></p>
+        <p class="free-lesson-message">
+            🎉 First lesson FREE with Mike &amp; Michalis!
+        </p>
+    </header>
 
-<p style="color:#1e7e34; font-weight:bold; margin-top:10px;">
-🎉 First lesson FREE with Mike & Michalis!
-</p>
+    <div class="homepage-columns">
 
-    <div class="teacher-cards">
+        <section class="booking-panel">
+            <h2 class="section-title">📚 Book a Lesson</h2>
 
-        <div class="teacher-card">
-            <h2>🇬🇧 Mike</h2>
-            <p>{{ t.english_lessons }}</p>
-            <a href="/booking?lang={{ lang }}">
-                <button onclick="posthog.capture('book_english_clicked')">{{ t.book_english }}</button>
-            </a>
-        </div>
+            <div class="teacher-cards">
 
-        <div class="teacher-card">
-            <h2>🇬🇷 Michalis</h2>
-            <p>{{ t.greek_lessons }}</p>
-            <a href="/booking/michalis?lang={{ lang }}">
-                <button onclick="posthog.capture('book_greek_clicked')">{{ t.book_greek }}</button>
-            </a>
-        </div>
+                <div class="teacher-card">
+                    <h3>🇬🇧 Mike</h3>
+                    <p>{{ t.english_lessons }}</p>
+                    <a href="/booking?lang={{ lang }}">
+                        <button onclick="posthog.capture('book_english_clicked')">
+                            {{ t.book_english }}
+                        </button>
+                    </a>
+                </div>
 
-        <div class="teacher-card">
-            <h2>🇪🇸 Emily</h2>
-            <p>{{ t.spanish_lessons }}</p>
-            <a href="/booking/emily?lang={{ lang }}">
-                <button onclick="posthog.capture('book_spanish_clicked')">{{ t.book_spanish }}</button>
-            </a>
-        </div>
+                <div class="teacher-card">
+                    <h3>🇬🇷 Michalis</h3>
+                    <p>{{ t.greek_lessons }}</p>
+                    <a href="/booking/michalis?lang={{ lang }}">
+                        <button onclick="posthog.capture('book_greek_clicked')">
+                            {{ t.book_greek }}
+                        </button>
+                    </a>
+                </div>
+
+                <div class="teacher-card">
+                    <h3>🇪🇸 Emily</h3>
+                    <p>{{ t.spanish_lessons }}</p>
+                    <a href="/booking/emily?lang={{ lang }}">
+                        <button onclick="posthog.capture('book_spanish_clicked')">
+                            {{ t.book_spanish }}
+                        </button>
+                    </a>
+                </div>
+
+            </div>
+        </section>
+
+        <section class="about-panel">
+            <h2 class="section-title">👋 About Us</h2>
+
+            <p>
+                LearningXY is an independent online learning website that
+                gives people from all around the world the opportunity to learn
+                while also allowing teachers to create and offer their own
+                lessons.
+            </p>
+
+            <ul>
+                <li>Qualified and supportive tutors</li>
+                <li>Lessons personalised to your goals</li>
+                <li>Online lessons available worldwide</li>
+            </ul>
+
+            <p>
+                Our goal is to help learners become more confident and make
+                steady progress in a comfortable learning environment.
+            </p>
+        </section>
 
     </div>
 
-</div>
+</main>
 
 </body>
 </html>

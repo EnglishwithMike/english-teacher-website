@@ -153,7 +153,7 @@ button:hover {
 .booking-day-panel {
     background: white;
     width: 700px;
-    margin: 40px auto;
+    margin: 40px 0 40px 8%;
     padding: 50px;
     border-radius: 20px;
     text-align: center;
@@ -216,4 +216,157 @@ button:hover {
 
 .language-switcher a:hover {
     opacity: 0.8;
+}
+
+
+/* Homepage teacher layout */
+.home-panel {
+    width: calc(100% - 60px);
+    max-width: 390px;
+    margin: 40px 0 40px 8%;
+    padding: 30px;
+    box-sizing: border-box;
+}
+
+/* Keep the top homepage text centred */
+.home-panel > h1,
+.home-panel > h1 + p,
+.home-panel > h1 + p + p {
+    text-align: center;
+}
+
+/* Move the lesson information to the left */
+.teacher-cards {
+    width: 100%;
+    margin-top: 25px;
+    text-align: left;
+}
+
+.teacher-card {
+    width: 100%;
+    margin-bottom: 28px;
+    text-align: left;
+}
+
+.teacher-card h2,
+.teacher-card p {
+    text-align: left;
+}
+
+/* Keep the box usable on phones */
+@media (max-width: 600px) {
+    .home-panel {
+        width: calc(100% - 30px);
+        max-width: none;
+        margin: 25px 15px;
+        padding: 25px;
+    }
+}
+
+
+/* LearningXY two-column homepage */
+
+.homepage-layout {
+    width: min(92%, 980px);
+    margin: 35px auto;
+}
+
+.homepage-header {
+    text-align: center;
+    margin-bottom: 28px;
+}
+
+.homepage-header h1 {
+    margin-bottom: 10px;
+}
+
+.homepage-header p {
+    margin: 8px 0;
+}
+
+.free-lesson-message {
+    color: #1e7e34;
+    font-weight: bold;
+}
+
+.homepage-columns {
+    display: grid;
+    grid-template-columns: minmax(280px, 360px) minmax(320px, 1fr);
+    gap: 35px;
+    align-items: stretch;
+}
+
+.booking-panel,
+.about-panel {
+    background: rgba(255, 255, 255, 0.88);
+    border: 3px solid #243b72;
+    border-radius: 18px;
+    padding: 28px;
+    box-sizing: border-box;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.section-title {
+    margin-top: 0;
+    margin-bottom: 25px;
+    text-align: center;
+}
+
+.teacher-cards {
+    width: 100%;
+    margin: 0;
+    text-align: left;
+}
+
+.teacher-card {
+    width: 100%;
+    margin-bottom: 28px;
+    text-align: left;
+}
+
+.teacher-card:last-child {
+    margin-bottom: 0;
+}
+
+.teacher-card h3 {
+    margin: 0 0 8px;
+}
+
+.teacher-card p {
+    margin: 0 0 12px;
+}
+
+.about-panel {
+    line-height: 1.6;
+}
+
+.about-panel p {
+    margin-top: 0;
+    margin-bottom: 22px;
+}
+
+.about-panel ul {
+    padding-left: 24px;
+    margin: 0 0 22px;
+}
+
+.about-panel li {
+    margin-bottom: 10px;
+}
+
+@media (max-width: 760px) {
+    .homepage-layout {
+        width: calc(100% - 30px);
+        margin: 25px auto;
+    }
+
+    .homepage-columns {
+        grid-template-columns: 1fr;
+        gap: 24px;
+    }
+
+    .booking-panel,
+    .about-panel {
+        padding: 24px;
+    }
 }
