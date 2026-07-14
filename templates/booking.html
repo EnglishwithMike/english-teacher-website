@@ -26,16 +26,16 @@
 
             {% if teacher == "mike" %}
             <p><strong>🇬🇧 English</strong></p>
-            <p>Graduate teacher with experience specialising in teaching English.</p>
-            <p>During my studies I volunteered in numerous schools, gaining valuable classroom experience with learners of different ages.</p>
-            <p>I also completed the internationally recognised Trinity CertTESOL, where I taught university students and further developed my teaching, lesson planning and classroom management skills.</p>
+            <p>{{ t.mike_bio_1 }}</p>
+            <p>{{ t.mike_bio_2 }}</p>
+            <p>{{ t.mike_bio_3 }}</p>
             {% elif teacher == "michalis" %}
             <p><strong>🇬🇷 Greek</strong></p>
-            <p>Greek teacher offering personalised online Greek lessons for learners who want to build confidence and communicate clearly.</p>
+            <p>{{ t.michalis_bio }}</p>
             {% else %}
             <p><strong>🇪🇸 Spanish</strong></p>
-            <p>Spanish teacher offering personalised online Spanish lessons.</p>
-            <p>Lessons are designed to help students build confidence, improve communication skills and practise useful Spanish for real situations.</p>
+            <p>{{ t.emily_bio_1 }}</p>
+            <p>{{ t.emily_bio_2 }}</p>
             {% endif %}
         </div>
 

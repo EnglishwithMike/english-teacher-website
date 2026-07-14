@@ -31,7 +31,7 @@
     <div class="homepage-columns">
 
         <section class="booking-panel">
-            <h2 class="section-title">📚 Book a Lesson</h2>
+            <h2 class="section-title">📚 {{ t.book_a_lesson }}</h2>
 
             <div class="teacher-cards">
 
@@ -69,32 +69,24 @@
         </section>
 
         <section class="about-panel">
-            <h2 class="section-title">👋 About Us</h2>
+            <h2 class="section-title">👋 {{ t.about_us }}</h2>
 
-            <p>
-                LearningXY is an independent online learning website that
-                gives people from all around the world the opportunity to learn
-                while also allowing teachers to create and offer their own
-                lessons.
-            </p>
+            <p>{{ t.about_intro }}</p>
 
             <ul>
-                <li>Qualified and supportive tutors</li>
-                <li>Lessons personalised to your goals</li>
-                <li>Online lessons available worldwide</li>
+                <li>{{ t.qualified_tutors }}</li>
+                <li>{{ t.personalised_lessons }}</li>
+                <li>{{ t.worldwide_lessons }}</li>
             </ul>
 
-            <p>
-                Our goal is to help learners become more confident and make
-                steady progress in a comfortable learning environment.
-            </p>
+            <p>{{ t.our_goal }}</p>
         </section>
 
     </div>
 
 
     <div class="social-panel">
-        <h2>Follow Our Socials!</h2>
+        <h2>{{ t.follow_socials }}</h2>
 
         <div class="social-links">
 
