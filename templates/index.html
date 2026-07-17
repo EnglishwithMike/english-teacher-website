@@ -17,6 +17,7 @@
     <a href="/?lang=es">🇪🇸</a>
 </div>
 
+
 <main class="homepage-layout">
 
     <header class="homepage-header">
@@ -65,6 +66,70 @@
                     </a>
                 </div>
 
+                {% for approved_teacher in approved_teachers %}
+                    <div class="teacher-card approved-teacher-card">
+                        <h3>
+                            {{ {
+                                "English": "🇬🇧",
+                                "Spanish": "🇪🇸",
+                                "Greek": "🇬🇷",
+                                "French": "🇫🇷",
+                                "Maths": "🔢",
+                                "Physics": "⚛️",
+                                "Dance": "💃",
+                                "Zumba": "🎵",
+                                "Chess": "♟️",
+                                "Guitar": "🎸",
+                                "Acoustic Guitar": "🎸",
+                                "Electric Piano": "🎹",
+                                "Violin": "🎻",
+                                "Singing": "🎤",
+                                "Painting": "🎨"
+                            }.get(approved_teacher.subject, "📚") }}
+                            {{ approved_teacher.name }}
+                            {{ approved_teacher.surname }}
+                        </h3>
+
+                        <p>
+                            {{ subject_t.get(
+                                approved_teacher.subject,
+                                approved_teacher.subject
+                            ) }}
+                            {% if lang == "es" %}
+                                Clases
+                            {% elif lang == "el" %}
+                                Μαθήματα
+                            {% else %}
+                                Lessons
+                            {% endif %}
+                        </p>
+
+                        <a href="/booking/teacher/{{ approved_teacher.slug }}?lang={{ lang }}">
+                            <button
+                                onclick="posthog.capture(
+                                    'book_approved_teacher_clicked',
+                                    {
+                                        teacher: '{{ approved_teacher.slug }}',
+                                        subject: '{{ approved_teacher.subject }}'
+                                    }
+                                )">
+                                {% if lang == "es" %}
+                                    Reservar
+                                {% elif lang == "el" %}
+                                    Κράτηση
+                                {% else %}
+                                    Book
+                                {% endif %}
+
+                                {{ subject_t.get(
+                                    approved_teacher.subject,
+                                    approved_teacher.subject
+                                ) }}
+                            </button>
+                        </a>
+                    </div>
+                {% endfor %}
+
             </div>
         </section>
 
@@ -80,6 +145,96 @@
             </ul>
 
             <p>{{ t.our_goal }}</p>
+        </section>
+
+        <section class="become-teacher-panel">
+            <a class="become-teacher-button"
+               href="/become-a-teacher?lang={{ lang }}"
+               onclick="posthog.capture('become_teacher_clicked')">
+                <i class="fa-solid fa-chalkboard-user"></i>
+
+                {% if lang == "es" %}
+                    Hazte profesor
+                {% elif lang == "el" %}
+                    Γίνε εκπαιδευτικός
+                {% else %}
+                    Become a Teacher
+                {% endif %}
+            </a>
+
+            <div class="become-teacher-information">
+                <h3>
+                    {% if lang == "es" %}
+                        Hazte profesor de:
+                    {% elif lang == "el" %}
+                        Γίνε εκπαιδευτικός στα:
+                    {% else %}
+                        Become a teacher of:
+                    {% endif %}
+                </h3>
+
+                <ul>
+                    {% if lang == "es" %}
+                        <li>Inglés</li>
+                        <li>Español</li>
+                        <li>Griego</li>
+                        <li>Francés</li>
+                        <li>Matemáticas</li>
+                        <li>Física</li>
+                        <li>Baile</li>
+                        <li>Zumba</li>
+                        <li>Ajedrez</li>
+                        <li>Guitarra acústica</li>
+                        <li>Guitarra eléctrica</li>
+                        <li>Piano</li>
+                        <li>Violín</li>
+                        <li>Canto</li>
+                        <li>Pintura</li>
+                    {% elif lang == "el" %}
+                        <li>Αγγλικά</li>
+                        <li>Ισπανικά</li>
+                        <li>Ελληνικά</li>
+                        <li>Γαλλικά</li>
+                        <li>Μαθηματικά</li>
+                        <li>Φυσική</li>
+                        <li>Χορό</li>
+                        <li>Zumba</li>
+                        <li>Σκάκι</li>
+                        <li>Ακουστική κιθάρα</li>
+                        <li>Ηλεκτρική κιθάρα</li>
+                        <li>Πιάνο</li>
+                        <li>Βιολί</li>
+                        <li>Τραγούδι</li>
+                        <li>Ζωγραφική</li>
+                    {% else %}
+                        <li>English</li>
+                        <li>Spanish</li>
+                        <li>Greek</li>
+                        <li>French</li>
+                        <li>Maths</li>
+                        <li>Physics</li>
+                        <li>Dance</li>
+                        <li>Zumba</li>
+                        <li>Chess</li>
+                        <li>Acoustic Guitar</li>
+                        <li>Electric Guitar</li>
+                        <li>Piano</li>
+                        <li>Violin</li>
+                        <li>Singing</li>
+                        <li>Painting</li>
+                    {% endif %}
+                </ul>
+
+                <p>
+                    {% if lang == "es" %}
+                        ¿Quieres enseñar otra cosa? Simplemente añade una opción. Nuestro equipo la revisará y se pondrá en contacto contigo.
+                    {% elif lang == "el" %}
+                        Θέλεις να διδάξεις κάτι άλλο; Απλώς πρόσθεσε μια επιλογή. Η ομάδα μας θα την εξετάσει και θα επικοινωνήσει μαζί σου.
+                    {% else %}
+                        Want to teach something else? Simply add an option. Our team will review it and get back to you.
+                    {% endif %}
+                </p>
+            </div>
         </section>
 
     </div>

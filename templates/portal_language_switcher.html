@@ -1,0 +1,11 @@
+
+<nav class="portal-language-switcher" aria-label="Choose language">
+    <a href="{{ request.path }}?lang=en"
+       class="{% if portal_lang == 'en' %}active{% endif %}">🇬🇧 EN</a>
+
+    <a href="{{ request.path }}?lang=es"
+       class="{% if portal_lang == 'es' %}active{% endif %}">🇪🇸 ES</a>
+
+    <a href="{{ request.path }}?lang=el"
+       class="{% if portal_lang == 'el' %}active{% endif %}">🇬🇷 EL</a>
+</nav>

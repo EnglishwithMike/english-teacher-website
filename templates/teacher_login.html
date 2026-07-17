@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Teacher Login | LearningXY</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+</head>
+<body>
+
+<main class="teacher-login-page">
+    <section class="teacher-login-panel">
+        <h1>Teacher Login</h1>
+        <p>Sign in using the email and password from your application.</p>
+
+        {% if error %}
+            <div class="application-error">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" class="teacher-login-form">
+            <label for="email">Email address</label>
+            <input id="email"
+                   name="email"
+                   type="email"
+                   autocomplete="email"
+                   required>
+
+            <label for="password">Password</label>
+            <input id="password"
+                   name="password"
+                   type="password"
+                   autocomplete="current-password"
+                   required>
+
+            <button type="submit">Log In as Teacher</button>
+        </form>
+
+        <a class="teacher-back-link" href="/">← Return to homepage</a>
+    </section>
+</main>
+
+</body>
+</html>

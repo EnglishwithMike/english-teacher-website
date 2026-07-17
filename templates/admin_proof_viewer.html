@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>View Proof | LearningXY Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+</head>
+<body class="proof-viewer-body">
+
+<header class="proof-viewer-header">
+    <div>
+        <a href="/admin/application/{{ application.id }}">
+            <i class="fa-solid fa-arrow-left"></i>
+            Back to application
+        </a>
+
+        <strong>
+            {{ application.name }} {{ application.surname }}
+            — {{ application.subject }}
+        </strong>
+    </div>
+
+    <span>{{ application.proof_original_name }}</span>
+</header>
+
+<main class="proof-viewer-container">
+    <iframe
+        src="/admin/application/{{ application.id }}/proof-content"
+        title="Teaching qualification proof">
+    </iframe>
+</main>
+
+</body>
+</html>

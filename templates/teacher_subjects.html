@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="{{ portal_lang }}">
+<head>
+    <title>{{ portal_t.become_teacher }} | LearningXY</title>
+    <meta name="description" content="{{ portal_t.choose_subject }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    {% include "posthog.html" %}
+</head>
+<body>
+
+<main class="teacher-signup-page">
+    {% include "portal_language_switcher.html" %}
+
+    <section class="subject-selection-panel">
+        <a class="teacher-back-link" href="/?lang={{ portal_lang }}">
+            <i class="fa-solid fa-arrow-left"></i>
+            {{ portal_t.back_home }}
+        </a>
+
+        <h1>{{ portal_t.become_teacher }}</h1>
+        <p class="teacher-page-intro">
+            {{ portal_t.choose_subject }}
+        </p>
+
+        <div class="subject-grid">
+            {% for subject, icon in subjects %}
+                <a class="subject-option"
+                   href="/teacher-application/{{ subject|lower|replace(' ', '-') }}?lang={{ portal_lang }}"
+                   onclick="posthog.capture('teacher_subject_selected', {subject: '{{ subject }}'})">
+                    <i class="fa-solid {{ icon }}"></i>
+                    <span>{{ subject_t.get(subject, subject) }}</span>
+                </a>
+            {% endfor %}
+
+            <a class="subject-option add-subject-option"
+               href="/teacher-application/other?lang={{ portal_lang }}">
+                <i class="fa-solid fa-plus"></i>
+                <span>{{ portal_t.add_option }}</span>
+            </a>
+        </div>
+    </section>
+</main>
+
+</body>
+</html>

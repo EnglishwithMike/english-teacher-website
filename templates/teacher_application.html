@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="{{ portal_lang }}">
+<head>
+    <title>{{ portal_t.apply_teach }} {{ subject_t.get(subject_name, subject_name) }} | LearningXY</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    {% include "posthog.html" %}
+</head>
+<body>
+
+<main class="teacher-signup-page">
+    {% include "portal_language_switcher.html" %}
+
+    <section class="teacher-application-panel">
+        <a class="teacher-back-link"
+           href="/become-a-teacher?lang={{ portal_lang }}">
+            <i class="fa-solid fa-arrow-left"></i>
+            {{ portal_t.back_subjects }}
+        </a>
+
+        <h1>
+            {{ portal_t.apply_teach }}
+            {{ subject_t.get(subject_name, subject_name) }}
+        </h1>
+
+        <p class="teacher-page-intro">
+            {{ portal_t.complete_form }}
+        </p>
+
+        {% if admin_testing %}
+            <div class="admin-testing-banner">
+                <i class="fa-solid fa-flask"></i>
+                {{ portal_t.admin_testing }}
+            </div>
+        {% endif %}
+
+        {% if error %}
+            <div class="application-error">{{ error }}</div>
+        {% endif %}
+
+        <form class="teacher-application-form"
+              method="POST"
+              enctype="multipart/form-data">
+
+            {% if subject_slug == "other" %}
+                <label for="custom_subject">
+                    {{ portal_t.custom_subject }}
+                </label>
+                <input id="custom_subject"
+                       name="custom_subject"
+                       type="text"
+                       value="{{ request.form.get('custom_subject', '') }}"
+                       required>
+            {% endif %}
+
+            <div class="application-name-row">
+                <div>
+                    <label for="name">{{ portal_t.first_name }}</label>
+                    <input id="name"
+                           name="name"
+                           type="text"
+                           value="{{ request.form.get('name', '') }}"
+                           autocomplete="given-name"
+                           required>
+                </div>
+
+                <div>
+                    <label for="surname">{{ portal_t.surname }}</label>
+                    <input id="surname"
+                           name="surname"
+                           type="text"
+                           value="{{ request.form.get('surname', '') }}"
+                           autocomplete="family-name"
+                           required>
+                </div>
+            </div>
+
+            <label for="email">{{ portal_t.email }}</label>
+            <input id="email"
+                   name="email"
+                   type="email"
+                   value="{{ request.form.get('email', '') }}"
+                   autocomplete="email"
+                   required>
+
+            <label for="password">{{ portal_t.password }}</label>
+            <input id="password"
+                   name="password"
+                   type="password"
+                   minlength="8"
+                   autocomplete="new-password"
+                   required>
+            <small>{{ portal_t.password_help }}</small>
+
+            <label for="confirm_password">
+                {{ portal_t.confirm_password }}
+            </label>
+            <input id="confirm_password"
+                   name="confirm_password"
+                   type="password"
+                   minlength="8"
+                   autocomplete="new-password"
+                   required>
+
+            <div class="proof-information">
+                <strong>{{ portal_t.proof_required }}</strong>
+
+                {% if portal_lang == "es" %}
+                    {% if subject_slug == "chess" %}
+                        <p>Sube una prueba de una puntuación de ajedrez mínima de 1200 ELO.</p>
+                    {% elif subject_slug in ["dance", "zumba"] %}
+                        <p>Sube un certificado, referencia profesional, portafolio u otra prueba de que puedes enseñar esta actividad.</p>
+                    {% else %}
+                        <p>Sube un diploma, título, certificado docente, portafolio u otra prueba relacionada con esta asignatura.</p>
+                    {% endif %}
+                {% elif portal_lang == "el" %}
+                    {% if subject_slug == "chess" %}
+                        <p>Ανέβασε αποδεικτικό σκακιστικής βαθμολογίας τουλάχιστον 1200 ELO.</p>
+                    {% elif subject_slug in ["dance", "zumba"] %}
+                        <p>Ανέβασε πιστοποιητικό, επαγγελματική σύσταση, χαρτοφυλάκιο ή άλλο αποδεικτικό ότι μπορείς να διδάξεις αυτή τη δραστηριότητα.</p>
+                    {% else %}
+                        <p>Ανέβασε σχετικό δίπλωμα, πτυχίο, πιστοποιητικό διδασκαλίας, χαρτοφυλάκιο ή άλλο αποδεικτικό.</p>
+                    {% endif %}
+                {% else %}
+                    <p>{{ proof_requirement }}</p>
+                {% endif %}
+            </div>
+
+            <label for="proof">{{ portal_t.upload_proof }}</label>
+            <input id="proof"
+                   name="proof"
+                   type="file"
+                   accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.odt"
+                   {% if not admin_testing %}required{% endif %}>
+            <small>{{ portal_t.proof_types }}</small>
+
+            <button class="submit-teacher-application" type="submit">
+                <i class="fa-solid fa-paper-plane"></i>
+                {{ portal_t.submit_application }}
+            </button>
+        </form>
+    </section>
+</main>
+
+</body>
+</html>

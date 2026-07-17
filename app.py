@@ -1,6 +1,12 @@
-from flask import Flask, render_template, request, redirect
+from flask import Flask, render_template, request, redirect, session, send_from_directory
+from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 import sqlite3
 import os
+import uuid
+import time
+import subprocess
+from functools import wraps
 import stripe
 import resend
 from dotenv import load_dotenv
@@ -16,6 +22,20 @@ stripe.api_key = STRIPE_SECRET_KEY
 resend.api_key = RESEND_API_KEY
 
 app = Flask(__name__)
+app.secret_key = os.getenv("FLASK_SECRET_KEY")
+
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
+ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH")
+
+
+def admin_required(function):
+    @wraps(function)
+    def protected_function(*args, **kwargs):
+        if not session.get("admin_logged_in"):
+            return redirect("/admin/login")
+        return function(*args, **kwargs)
+    return protected_function
+
 
 TEACHERS = {
     "mike": {
@@ -247,10 +267,202 @@ def sitemap_xml():
     return app.send_static_file("sitemap.xml")
 
 
+
+def get_public_approved_teachers():
+    if not os.path.exists("approved_teachers.db"):
+        return []
+
+    conn = sqlite3.connect("approved_teachers.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    table_exists = cursor.execute("""
+        SELECT name
+        FROM sqlite_master
+        WHERE type = 'table'
+        AND name = 'approved_teachers'
+    """).fetchone()
+
+    if not table_exists:
+        conn.close()
+        return []
+
+    teachers = cursor.execute("""
+        SELECT id, slug, name, surname, subject,
+               profile_image, hourly_rate_pence
+        FROM approved_teachers
+        WHERE active = 1
+        ORDER BY approved_at ASC
+    """).fetchall()
+
+    conn.close()
+    return teachers
+
+
+def get_approved_teacher_by_slug(slug):
+    if not os.path.exists("approved_teachers.db"):
+        return None
+
+    conn = sqlite3.connect("approved_teachers.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    teacher = cursor.execute("""
+        SELECT id, application_id, slug, name, surname,
+               email, subject, profile_image,
+               hourly_rate_pence, active
+        FROM approved_teachers
+        WHERE slug = ? AND active = 1
+    """, (slug,)).fetchone()
+
+    conn.close()
+
+    if not teacher:
+        return None
+
+    return {
+        "id": teacher["id"],
+        "application_id": teacher["application_id"],
+        "slug": teacher["slug"],
+        "name": teacher["name"],
+        "surname": teacher["surname"],
+        "full_name": f"{teacher['name']} {teacher['surname']}",
+        "email": teacher["email"],
+        "subject": teacher["subject"],
+        "profile_image": teacher["profile_image"],
+        "hourly_rate_pence": teacher["hourly_rate_pence"],
+        "flag": "🎓",
+        "lesson_name": (
+            f"{teacher['subject']} Lesson with {teacher['name']}"
+        ),
+        "dynamic": True,
+    }
+
+
 @app.route("/")
 def home():
     lang = get_lang()
-    return render_template("index.html", teachers=TEACHERS, lang=lang, t=TRANSLATIONS[lang])
+    return render_template(
+        "index.html",
+        teachers=TEACHERS,
+        approved_teachers=get_public_approved_teachers(),
+        lang=lang,
+        t=TRANSLATIONS[lang]
+    )
+
+
+
+def get_dynamic_teacher_availability(teacher_id):
+    conn = sqlite3.connect("approved_teachers.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    rows = cursor.execute("""
+        SELECT day, start_time, end_time
+        FROM teacher_availability
+        WHERE teacher_id = ?
+        ORDER BY
+            CASE day
+                WHEN 'Monday' THEN 1
+                WHEN 'Tuesday' THEN 2
+                WHEN 'Wednesday' THEN 3
+                WHEN 'Thursday' THEN 4
+                WHEN 'Friday' THEN 5
+                WHEN 'Saturday' THEN 6
+                WHEN 'Sunday' THEN 7
+            END
+    """, (teacher_id,)).fetchall()
+
+    conn.close()
+    return rows
+
+
+def generate_lesson_times(start_time, end_time):
+    start_hour, start_minute = map(int, start_time.split(":"))
+    end_hour, end_minute = map(int, end_time.split(":"))
+
+    current_minutes = start_hour * 60 + start_minute
+    ending_minutes = end_hour * 60 + end_minute
+    lesson_times = []
+
+    while current_minutes + 60 <= ending_minutes:
+        hour = current_minutes // 60
+        minute = current_minutes % 60
+        lesson_times.append(f"{hour:02d}:{minute:02d}")
+        current_minutes += 60
+
+    return lesson_times
+
+
+@app.route("/booking/teacher/<teacher_slug>")
+def booking_approved_teacher(teacher_slug):
+    lang = get_lang()
+    teacher_info = get_approved_teacher_by_slug(teacher_slug)
+
+    if not teacher_info:
+        return "Teacher not found.", 404
+
+    availability = get_dynamic_teacher_availability(
+        teacher_info["id"]
+    )
+
+    return render_template(
+        "booking.html",
+        teacher=teacher_slug,
+        teacher_info=teacher_info,
+        dynamic_teacher=True,
+        available_days=[row["day"] for row in availability],
+        lang=lang,
+        t=TRANSLATIONS[lang]
+    )
+
+
+@app.route("/booking/teacher/<teacher_slug>/<day>")
+def booking_day_approved_teacher(teacher_slug, day):
+    lang = get_lang()
+    teacher_info = get_approved_teacher_by_slug(teacher_slug)
+
+    if not teacher_info:
+        return "Teacher not found.", 404
+
+    availability = get_dynamic_teacher_availability(
+        teacher_info["id"]
+    )
+
+    selected_day = next(
+        (row for row in availability if row["day"] == day),
+        None
+    )
+
+    if not selected_day:
+        return "This teacher is not available on that day.", 404
+
+    available_times = generate_lesson_times(
+        selected_day["start_time"],
+        selected_day["end_time"]
+    )
+
+    conn = sqlite3.connect("bookings.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT time
+        FROM bookings
+        WHERE teacher = ? AND day = ?
+    """, (teacher_slug, day))
+    booked_times = [row[0] for row in cursor.fetchall()]
+    conn.close()
+
+    return render_template(
+        "booking_day.html",
+        day=day,
+        booked=booked_times,
+        available_times=available_times,
+        teacher=teacher_slug,
+        teacher_info=teacher_info,
+        dynamic_teacher=True,
+        lang=lang,
+        t=TRANSLATIONS[lang]
+    )
 
 
 @app.route("/booking")
@@ -319,62 +531,104 @@ def show_booking_day(teacher, day):
 @app.route("/book", methods=["POST"])
 def book():
     teacher = request.form.get("teacher", "mike")
+    teacher_info = TEACHERS.get(teacher)
+    dynamic_teacher = False
 
-    if teacher not in TEACHERS:
-        teacher = "mike"
+    if not teacher_info:
+        teacher_info = get_approved_teacher_by_slug(teacher)
+        dynamic_teacher = True
 
-    day = request.form["day"]
-    time = request.form["time"]
-    name = request.form["name"]
-    email = request.form["email"]
-    phone = request.form["phone"]
+    if not teacher_info:
+        return "Teacher not found.", 404
+
+    day = request.form.get("day", "")
+    lesson_time = request.form.get("time", "")
+    name = request.form.get("name", "").strip()
+    email = request.form.get("email", "").strip()
+    phone = request.form.get("phone", "").strip()
     lang = request.form.get("lang", "en")
+
     if lang not in TRANSLATIONS:
         lang = "en"
 
-    if not time:
-        return "Please choose a lesson time."
+    if not lesson_time:
+        return "Please choose a lesson time.", 400
+
+    if dynamic_teacher:
+        availability = get_dynamic_teacher_availability(
+            teacher_info["id"]
+        )
+
+        selected_day = next(
+            (row for row in availability if row["day"] == day),
+            None
+        )
+
+        if not selected_day:
+            return "This teacher is not available on that day.", 400
+
+        valid_times = generate_lesson_times(
+            selected_day["start_time"],
+            selected_day["end_time"]
+        )
+
+        if lesson_time not in valid_times:
+            return "That lesson time is not available.", 400
 
     conn = sqlite3.connect("bookings.db")
-    c = conn.cursor()
+    cursor = conn.cursor()
 
     if teacher in ["mike", "michalis"]:
-        c.execute(
-            "SELECT * FROM bookings WHERE teacher IN ('mike', 'michalis') AND day=? AND time=?",
-            (day, time)
-        )
+        cursor.execute("""
+            SELECT id FROM bookings
+            WHERE teacher IN ('mike', 'michalis')
+            AND day = ? AND time = ?
+        """, (day, lesson_time))
     else:
-        c.execute(
-            "SELECT * FROM bookings WHERE teacher=? AND day=? AND time=?",
-            (teacher, day, time)
-        )
+        cursor.execute("""
+            SELECT id FROM bookings
+            WHERE teacher = ? AND day = ? AND time = ?
+        """, (teacher, day, lesson_time))
 
-    exists = c.fetchone()
+    slot_exists = cursor.fetchone()
 
-    c.execute("SELECT email FROM free_lessons WHERE lower(email)=lower(?)", (email,))
-    previous_booking = c.fetchone()
+    cursor.execute("""
+        SELECT email FROM free_lessons
+        WHERE lower(email) = lower(?)
+    """, (email,))
+    previous_free_lesson = cursor.fetchone()
 
     conn.close()
 
-    if exists:
-        return "This slot is already booked."
+    if slot_exists:
+        return "This slot is already booked.", 409
 
-    # First lesson is free
-    if teacher in ["mike", "michalis"] and not previous_booking:
+    if teacher in ["mike", "michalis"] and not previous_free_lesson:
         conn = sqlite3.connect("bookings.db")
-        c = conn.cursor()
-        c.execute("""
-            INSERT INTO bookings (teacher, day, time, name, email, phone, checkout_session_id, email_sent)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (teacher, day, time, name, email, phone, "FREE_FIRST_LESSON", 0))
+        cursor = conn.cursor()
 
-        c.execute("INSERT OR IGNORE INTO free_lessons (email) VALUES (?)", (email.lower(),))
+        cursor.execute("""
+            INSERT INTO bookings
+            (
+                teacher, day, time, name, email, phone,
+                checkout_session_id, email_sent
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            teacher, day, lesson_time, name, email, phone,
+            "FREE_FIRST_LESSON", 0
+        ))
+
+        cursor.execute("""
+            INSERT OR IGNORE INTO free_lessons (email)
+            VALUES (?)
+        """, (email.lower(),))
 
         conn.commit()
         conn.close()
 
-        teacher_name = TEACHERS[teacher]["name"]
-        teacher_flag = TEACHERS[teacher]["flag"]
+        teacher_name = teacher_info["name"]
+        teacher_flag = teacher_info["flag"]
 
         send_email(
             OWNER_EMAIL,
@@ -382,12 +636,11 @@ def book():
             f"""New FREE first lesson booking received:
 
 Teacher: {teacher_name} {teacher_flag}
-Student name: {name}
+Student: {name}
 Student email: {email}
 Student phone: {phone}
 Day: {day}
-Time: {time}
-Payment: Free first lesson
+Time: {lesson_time}
 """
         )
 
@@ -396,20 +649,41 @@ Payment: Free first lesson
             "Free First Lesson Booking Confirmed",
             f"""Hi {name},
 
-Your free first lesson with {teacher_name} {teacher_flag} has been booked successfully.
+Your free first lesson with {teacher_name} has been booked.
 
 Day: {day}
-Time: {time}
-
-If you need anything or have any questions, please send an email here:
-
-Email: {OWNER_EMAIL}
+Time: {lesson_time} UK time
 
 See you then!
 """
         )
 
-        return render_template("success.html", day=day, time=time, teacher=teacher, teacher_info=TEACHERS[teacher], lang=lang, t=TRANSLATIONS[lang])
+        return render_template(
+            "success.html",
+            day=day,
+            time=lesson_time,
+            teacher=teacher,
+            teacher_info=teacher_info,
+            lang=lang,
+            t=TRANSLATIONS[lang]
+        )
+
+    unit_amount = (
+        teacher_info["hourly_rate_pence"]
+        if dynamic_teacher else 1000
+    )
+
+    base_url = request.host_url.rstrip("/")
+
+    if dynamic_teacher:
+        cancel_url = (
+            f"{base_url}/booking/teacher/{teacher}"
+            f"?lang={lang}"
+        )
+    elif teacher == "mike":
+        cancel_url = f"{base_url}/booking?lang={lang}"
+    else:
+        cancel_url = f"{base_url}/booking/{teacher}?lang={lang}"
 
     checkout_session = stripe.checkout.Session.create(
         payment_method_types=["card"],
@@ -419,19 +693,22 @@ See you then!
                 "price_data": {
                     "currency": "gbp",
                     "product_data": {
-                        "name": TEACHERS[teacher]["lesson_name"],
+                        "name": teacher_info["lesson_name"],
                     },
-                    "unit_amount": 1000,
+                    "unit_amount": unit_amount,
                 },
                 "quantity": 1,
             }
         ],
-        success_url="https://english-teacher-website-xe4z.onrender.com/success?session_id={CHECKOUT_SESSION_ID}",
-        cancel_url=f"https://english-teacher-website-xe4z.onrender.com/booking/{teacher if teacher != 'mike' else ''}",
+        success_url=(
+            f"{base_url}/success"
+            "?session_id={CHECKOUT_SESSION_ID}"
+        ),
+        cancel_url=cancel_url,
         metadata={
             "teacher": teacher,
             "day": day,
-            "time": time,
+            "time": lesson_time,
             "name": name,
             "email": email,
             "phone": phone,
@@ -444,7 +721,7 @@ See you then!
         checkout_url=checkout_session.url,
         teacher=teacher,
         day=day,
-        time=time,
+        time=lesson_time,
         lang=lang
     )
 
@@ -454,110 +731,1875 @@ def success():
     session_id = request.args.get("session_id")
 
     if not session_id:
-        return "No payment session found."
+        return "No payment session found.", 400
 
     checkout_session = stripe.checkout.Session.retrieve(session_id)
 
     if checkout_session.payment_status != "paid":
-        return "Payment not completed."
+        return "Payment not completed.", 400
 
     metadata = checkout_session.metadata._data
     teacher = metadata.get("teacher", "mike")
+    teacher_info = TEACHERS.get(teacher)
+    dynamic_teacher = False
+
+    if not teacher_info:
+        teacher_info = get_approved_teacher_by_slug(teacher)
+        dynamic_teacher = True
+
+    if not teacher_info:
+        return "The booked teacher account was not found.", 404
+
     lang = metadata.get("lang", "en")
+
     if lang not in TRANSLATIONS:
         lang = "en"
 
-    if teacher not in TEACHERS:
-        teacher = "mike"
-
-    teacher_name = TEACHERS[teacher]["name"]
-    teacher_flag = TEACHERS[teacher]["flag"]
+    teacher_name = (
+        teacher_info["full_name"]
+        if dynamic_teacher else teacher_info["name"]
+    )
+    teacher_flag = teacher_info["flag"]
 
     day = metadata["day"]
-    time = metadata["time"]
+    lesson_time = metadata["time"]
     name = metadata["name"]
     email = metadata["email"]
-    phone = metadata["phone"]
+    phone = metadata.get("phone", "")
+    paid_amount_pence = checkout_session.amount_total or 0
+    paid_amount = paid_amount_pence / 100
 
     conn = sqlite3.connect("bookings.db")
-    c = conn.cursor()
+    cursor = conn.cursor()
 
-    c.execute("SELECT * FROM bookings WHERE checkout_session_id=?", (session_id,))
-    already_saved = c.fetchone()
+    cursor.execute("""
+        SELECT id FROM bookings
+        WHERE checkout_session_id = ?
+    """, (session_id,))
+    already_saved = cursor.fetchone()
 
     if teacher in ["mike", "michalis"]:
-        c.execute(
-            "SELECT * FROM bookings WHERE teacher IN ('mike', 'michalis') AND day=? AND time=?",
-            (day, time)
-        )
+        cursor.execute("""
+            SELECT id FROM bookings
+            WHERE teacher IN ('mike', 'michalis')
+            AND day = ? AND time = ?
+        """, (day, lesson_time))
     else:
-        c.execute(
-            "SELECT * FROM bookings WHERE teacher=? AND day=? AND time=?",
-            (teacher, day, time)
-        )
+        cursor.execute("""
+            SELECT id FROM bookings
+            WHERE teacher = ? AND day = ? AND time = ?
+        """, (teacher, day, lesson_time))
 
-    slot_taken = c.fetchone()
+    slot_taken = cursor.fetchone()
 
     if slot_taken and not already_saved:
         conn.close()
-        return "Sorry, this lesson slot was booked by another student while payment was being processed. Please choose another time."
+        return (
+            "Sorry, this lesson slot was booked by another student "
+            "while payment was being processed."
+        ), 409
 
     if not already_saved:
-        c.execute("""
-            INSERT INTO bookings (teacher, day, time, name, email, phone, checkout_session_id, email_sent)
+        cursor.execute("""
+            INSERT INTO bookings
+            (
+                teacher, day, time, name, email, phone,
+                checkout_session_id, email_sent
+            )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (teacher, day, time, name, email, phone, session_id, 0))
+        """, (
+            teacher, day, lesson_time, name, email, phone,
+            session_id, 0
+        ))
         conn.commit()
 
     conn.close()
 
-    owner_msg = f"""
-New paid booking received:
-
-Teacher: {teacher_name} {teacher_flag}
-Student name: {name}
-Student email: {email}
-Student phone: {phone}
-Day: {day}
-Time: {time}
-Payment: £10 paid
-
-Emily lesson split if this is for Emily:
-Your 4.5%: £0.45
-Emily share before Stripe fees: £9.55
-"""
-
     owner_email_ok = send_email(
         OWNER_EMAIL,
         f"New Paid Lesson Booking for {teacher_name}",
-        owner_msg
+        f"""New paid booking received:
+
+Teacher: {teacher_name} {teacher_flag}
+Student: {name}
+Student email: {email}
+Student phone: {phone}
+Day: {day}
+Time: {lesson_time}
+Payment: £{paid_amount:.2f}
+"""
     )
 
-    student_msg = f"""
-Hi {name},
+    student_email_ok = send_email(
+        email,
+        "Booking Confirmed",
+        f"""Hi {name},
 
-Your lesson with {teacher_name} {teacher_flag} has been booked successfully.
+Your lesson with {teacher_name} has been booked successfully.
 
 Day: {day}
-Time: {time}
+Time: {lesson_time} UK time
+Payment: £{paid_amount:.2f}
 
-If you need anything or have any questions, please send an email here:
-
-Email: {OWNER_EMAIL}
+If you have any questions, contact: {OWNER_EMAIL}
 
 See you then!
 """
+    )
 
-    student_email_ok = send_email(email, "Booking Confirmed", student_msg)
+    if dynamic_teacher:
+        send_email(
+            teacher_info["email"],
+            "New Lesson Booked with You",
+            f"""Hi {teacher_info['name']},
+
+A student booked a lesson with you.
+
+Student: {name}
+Student email: {email}
+Student phone: {phone}
+Day: {day}
+Time: {lesson_time} UK time
+
+You can also see this booking in your teacher dashboard.
+"""
+        )
 
     if owner_email_ok and student_email_ok:
         conn = sqlite3.connect("bookings.db")
-        c = conn.cursor()
-        c.execute("UPDATE bookings SET email_sent=1 WHERE checkout_session_id=?", (session_id,))
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE bookings
+            SET email_sent = 1
+            WHERE checkout_session_id = ?
+        """, (session_id,))
         conn.commit()
         conn.close()
 
-    return render_template("success.html", day=day, time=time, teacher=teacher, teacher_info=TEACHERS[teacher], lang=lang, t=TRANSLATIONS[lang])
+    return render_template(
+        "success.html",
+        day=day,
+        time=lesson_time,
+        teacher=teacher,
+        teacher_info=teacher_info,
+        lang=lang,
+        t=TRANSLATIONS[lang]
+    )
+
+
+@app.route("/become-a-teacher")
+def become_a_teacher():
+    subjects = [
+        ("English", "fa-language"),
+        ("Spanish", "fa-language"),
+        ("Greek", "fa-language"),
+        ("French", "fa-language"),
+        ("Maths", "fa-calculator"),
+        ("Physics", "fa-atom"),
+        ("Dance", "fa-person-running"),
+        ("Zumba", "fa-music"),
+        ("Chess", "fa-chess"),
+        ("Guitar", "fa-guitar"),
+        ("Acoustic Guitar", "fa-guitar"),
+        ("Electric Piano", "fa-music"),
+        ("Violin", "fa-music"),
+        ("Singing", "fa-microphone"),
+        ("Painting", "fa-palette"),
+    ]
+    return render_template("teacher_subjects.html", subjects=subjects)
+
+
+
+
+def create_approved_teacher_account(application_id):
+    application_conn = sqlite3.connect("teacher_applications.db")
+    application_cursor = application_conn.cursor()
+
+    application = application_cursor.execute("""
+        SELECT id, subject, name, surname, email, password_hash
+        FROM teacher_applications
+        WHERE id = ?
+    """, (application_id,)).fetchone()
+
+    application_conn.close()
+
+    if not application:
+        return None
+
+    app_id, subject, name, surname, email, password_hash = application
+
+    base_slug = secure_filename(
+        f"{name}-{surname}"
+    ).lower().replace("_", "-")
+
+    if not base_slug:
+        base_slug = "teacher"
+
+    teacher_slug = f"{base_slug}-{app_id}"
+
+    conn = sqlite3.connect("approved_teachers.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS approved_teachers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            application_id INTEGER UNIQUE NOT NULL,
+            slug TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            surname TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            profile_image TEXT,
+            hourly_rate_pence INTEGER NOT NULL DEFAULT 1000,
+            active INTEGER NOT NULL DEFAULT 1,
+            approved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS teacher_availability (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            teacher_id INTEGER NOT NULL,
+            day TEXT NOT NULL,
+            start_time TEXT NOT NULL,
+            end_time TEXT NOT NULL,
+            UNIQUE(teacher_id, day),
+            FOREIGN KEY (teacher_id)
+                REFERENCES approved_teachers(id)
+        )
+    """)
+
+    existing_teacher = cursor.execute("""
+        SELECT id
+        FROM approved_teachers
+        WHERE application_id = ? OR lower(email) = lower(?)
+    """, (app_id, email)).fetchone()
+
+    if existing_teacher:
+        cursor.execute("""
+            UPDATE approved_teachers
+            SET name = ?,
+                surname = ?,
+                subject = ?,
+                password_hash = ?,
+                active = 1
+            WHERE id = ?
+        """, (
+            name,
+            surname,
+            subject,
+            password_hash,
+            existing_teacher[0],
+        ))
+        teacher_id = existing_teacher[0]
+    else:
+        cursor.execute("""
+            INSERT INTO approved_teachers
+            (
+                application_id, slug, name, surname,
+                email, password_hash, subject
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            app_id,
+            teacher_slug,
+            name,
+            surname,
+            email,
+            password_hash,
+            subject,
+        ))
+        teacher_id = cursor.lastrowid
+
+    conn.commit()
+    conn.close()
+
+    return teacher_id
+
+
+
+PORTAL_TRANSLATIONS = {
+    "en": {
+        "language_name": "English",
+        "become_teacher": "Become a Teacher",
+        "choose_subject": "Choose the subject you would like to teach.",
+        "back_home": "Back to homepage",
+        "back_subjects": "Back to subjects",
+        "apply_teach": "Apply to Teach",
+        "complete_form": "Complete the form and submit evidence of your teaching ability.",
+        "custom_subject": "Subject you want to teach",
+        "first_name": "First name",
+        "surname": "Surname",
+        "email": "Email address",
+        "password": "Password",
+        "confirm_password": "Confirm password",
+        "password_help": "Use at least 8 characters.",
+        "proof_required": "Proof required",
+        "upload_proof": "Upload your proof",
+        "proof_types": "Accepted: PDF, PNG, JPG, JPEG, DOC, DOCX or ODT. Maximum size: 5 MB.",
+        "submit_application": "Submit Application",
+        "admin_testing": "Admin testing mode is active. A proof file is optional.",
+        "add_option": "Add an option",
+        "congratulations": "Congratulations",
+        "application_received": "Your application has been received.",
+        "review_message": "Our team will review your credentials and may get back to you as soon as tomorrow.",
+        "share_message": "In the meantime, you can tell your friends that you are applying to teach with LearningXY, so they know where they will be able to book lessons with you.",
+        "share_link": "Share this link:",
+        "copy": "Copy",
+        "copied": "Copied!",
+        "social_message": "After your teaching qualifications are approved, we will advertise you and your lessons across our social media pages.",
+        "happy_teaching": "Good luck and happy teaching!",
+        "return_home": "Return to Homepage",
+        "teacher_login": "Teacher Login",
+        "login_instructions": "Sign in using the email and password from your application.",
+        "login_teacher": "Log In as Teacher",
+        "welcome": "Welcome",
+        "teacher_word": "teacher",
+        "logout": "Log Out",
+        "admin_test_mode": "Admin Testing Mode",
+        "testing_account": "You are testing this teacher’s account.",
+        "stop_testing": "Stop Testing and Return to Admin",
+        "your_profile": "Your Profile",
+        "profile_picture": "Profile picture",
+        "picture_help": "PNG, JPG, JPEG or WEBP. Maximum 5 MB.",
+        "qualification": "Qualification",
+        "view_qualification": "View Qualification",
+        "no_qualification": "No qualification file was uploaded.",
+        "price_hour": "Your price per hour",
+        "weekly_availability": "Your Weekly Availability",
+        "availability_help": "Tick each day you want to teach, then choose your starting and finishing time.",
+        "from": "From",
+        "until": "Until",
+        "save_profile": "Save Profile and Availability",
+        "monday": "Monday",
+        "tuesday": "Tuesday",
+        "wednesday": "Wednesday",
+        "thursday": "Thursday",
+        "friday": "Friday",
+        "saturday": "Saturday",
+        "sunday": "Sunday",
+        "teaching_qualification": "Teaching Qualification",
+        "back_dashboard": "Back to Dashboard",
+        "admin_dashboard": "Teacher Applications",
+        "admin_private": "This page is private and visible only after admin login.",
+        "test_application": "Test Application",
+        "test_teacher": "Test Teacher",
+        "applicant": "Applicant",
+        "subject": "Subject",
+        "proof": "Proof",
+        "status": "Status",
+        "submitted": "Submitted",
+        "action": "Action",
+        "view": "View",
+        "approved": "Approved",
+        "declined": "Declined",
+        "pending": "Pending",
+    },
+
+    "es": {
+        "language_name": "Español",
+        "become_teacher": "Hazte profesor",
+        "choose_subject": "Elige la asignatura que te gustaría enseñar.",
+        "back_home": "Volver a la página principal",
+        "back_subjects": "Volver a las asignaturas",
+        "apply_teach": "Solicitud para enseñar",
+        "complete_form": "Completa el formulario y presenta pruebas de tu capacidad para enseñar.",
+        "custom_subject": "Asignatura que deseas enseñar",
+        "first_name": "Nombre",
+        "surname": "Apellido",
+        "email": "Correo electrónico",
+        "password": "Contraseña",
+        "confirm_password": "Confirmar contraseña",
+        "password_help": "Utiliza al menos 8 caracteres.",
+        "proof_required": "Documento requerido",
+        "upload_proof": "Sube tu documento",
+        "proof_types": "Formatos aceptados: PDF, PNG, JPG, JPEG, DOC, DOCX u ODT. Tamaño máximo: 5 MB.",
+        "submit_application": "Enviar solicitud",
+        "admin_testing": "El modo de prueba de administrador está activo. El documento es opcional.",
+        "add_option": "Añadir una opción",
+        "congratulations": "¡Enhorabuena",
+        "application_received": "Hemos recibido tu solicitud.",
+        "review_message": "Nuestro equipo revisará tus credenciales y podría responderte a partir de mañana.",
+        "share_message": "Mientras tanto, puedes contarles a tus amigos que has solicitado enseñar con LearningXY para que sepan dónde podrán reservar clases contigo.",
+        "share_link": "Comparte este enlace:",
+        "copy": "Copiar",
+        "copied": "¡Copiado!",
+        "social_message": "Una vez aprobadas tus credenciales, anunciaremos tu nombre y tus clases en nuestras redes sociales.",
+        "happy_teaching": "¡Buena suerte y feliz enseñanza!",
+        "return_home": "Volver a la página principal",
+        "teacher_login": "Acceso para profesores",
+        "login_instructions": "Inicia sesión con el correo y la contraseña de tu solicitud.",
+        "login_teacher": "Iniciar sesión como profesor",
+        "welcome": "Bienvenido/a",
+        "teacher_word": "profesor/a",
+        "logout": "Cerrar sesión",
+        "admin_test_mode": "Modo de prueba de administrador",
+        "testing_account": "Estás probando la cuenta de este profesor.",
+        "stop_testing": "Dejar de probar y volver al administrador",
+        "your_profile": "Tu perfil",
+        "profile_picture": "Foto de perfil",
+        "picture_help": "PNG, JPG, JPEG o WEBP. Máximo 5 MB.",
+        "qualification": "Credencial",
+        "view_qualification": "Ver credencial",
+        "no_qualification": "No se ha subido ningún documento.",
+        "price_hour": "Tu precio por hora",
+        "weekly_availability": "Tu disponibilidad semanal",
+        "availability_help": "Marca los días en los que deseas enseñar y elige las horas de inicio y finalización.",
+        "from": "Desde",
+        "until": "Hasta",
+        "save_profile": "Guardar perfil y disponibilidad",
+        "monday": "Lunes",
+        "tuesday": "Martes",
+        "wednesday": "Miércoles",
+        "thursday": "Jueves",
+        "friday": "Viernes",
+        "saturday": "Sábado",
+        "sunday": "Domingo",
+        "teaching_qualification": "Credencial docente",
+        "back_dashboard": "Volver al panel",
+        "admin_dashboard": "Solicitudes de profesores",
+        "admin_private": "Esta página es privada y solo puede verse después de iniciar sesión como administrador.",
+        "test_application": "Probar solicitud",
+        "test_teacher": "Probar profesor",
+        "applicant": "Solicitante",
+        "subject": "Asignatura",
+        "proof": "Documento",
+        "status": "Estado",
+        "submitted": "Enviado",
+        "action": "Acción",
+        "view": "Ver",
+        "approved": "Aprobada",
+        "declined": "Rechazada",
+        "pending": "Pendiente",
+    },
+
+    "el": {
+        "language_name": "Ελληνικά",
+        "become_teacher": "Γίνε εκπαιδευτικός",
+        "choose_subject": "Επίλεξε το μάθημα που θα ήθελες να διδάξεις.",
+        "back_home": "Επιστροφή στην αρχική σελίδα",
+        "back_subjects": "Επιστροφή στα μαθήματα",
+        "apply_teach": "Αίτηση διδασκαλίας",
+        "complete_form": "Συμπλήρωσε τη φόρμα και υπέβαλε αποδεικτικά της διδακτικής σου ικανότητας.",
+        "custom_subject": "Μάθημα που θέλεις να διδάξεις",
+        "first_name": "Όνομα",
+        "surname": "Επώνυμο",
+        "email": "Ηλεκτρονική διεύθυνση",
+        "password": "Κωδικός πρόσβασης",
+        "confirm_password": "Επιβεβαίωση κωδικού",
+        "password_help": "Χρησιμοποίησε τουλάχιστον 8 χαρακτήρες.",
+        "proof_required": "Απαιτούμενο αποδεικτικό",
+        "upload_proof": "Ανέβασε το αποδεικτικό σου",
+        "proof_types": "Δεκτά αρχεία: PDF, PNG, JPG, JPEG, DOC, DOCX ή ODT. Μέγιστο μέγεθος: 5 MB.",
+        "submit_application": "Υποβολή αίτησης",
+        "admin_testing": "Η δοκιμαστική λειτουργία διαχειριστή είναι ενεργή. Το αρχείο είναι προαιρετικό.",
+        "add_option": "Προσθήκη επιλογής",
+        "congratulations": "Συγχαρητήρια",
+        "application_received": "Η αίτησή σου παραλήφθηκε.",
+        "review_message": "Η ομάδα μας θα εξετάσει τα προσόντα σου και ενδέχεται να επικοινωνήσει μαζί σου ακόμη και από αύριο.",
+        "share_message": "Στο μεταξύ, μπορείς να ενημερώσεις τους φίλους σου ότι έκανες αίτηση για να διδάξεις στο LearningXY, ώστε να γνωρίζουν πού θα μπορούν να κλείσουν μάθημα μαζί σου.",
+        "share_link": "Μοιράσου αυτόν τον σύνδεσμο:",
+        "copy": "Αντιγραφή",
+        "copied": "Αντιγράφηκε!",
+        "social_message": "Μετά την έγκριση των προσόντων σου, θα διαφημίσουμε το όνομά σου και τα μαθήματά σου στα μέσα κοινωνικής δικτύωσης.",
+        "happy_teaching": "Καλή επιτυχία και καλή διδασκαλία!",
+        "return_home": "Επιστροφή στην αρχική σελίδα",
+        "teacher_login": "Σύνδεση εκπαιδευτικού",
+        "login_instructions": "Συνδέσου με το email και τον κωδικό που χρησιμοποίησες στην αίτηση.",
+        "login_teacher": "Σύνδεση ως εκπαιδευτικός",
+        "welcome": "Καλώς ήρθες",
+        "teacher_word": "εκπαιδευτικός",
+        "logout": "Αποσύνδεση",
+        "admin_test_mode": "Δοκιμαστική λειτουργία διαχειριστή",
+        "testing_account": "Δοκιμάζεις τον λογαριασμό αυτού του εκπαιδευτικού.",
+        "stop_testing": "Τέλος δοκιμής και επιστροφή στον διαχειριστή",
+        "your_profile": "Το προφίλ σου",
+        "profile_picture": "Φωτογραφία προφίλ",
+        "picture_help": "PNG, JPG, JPEG ή WEBP. Μέγιστο μέγεθος 5 MB.",
+        "qualification": "Προσόν",
+        "view_qualification": "Προβολή προσόντος",
+        "no_qualification": "Δεν ανέβηκε αρχείο προσόντων.",
+        "price_hour": "Η τιμή σου ανά ώρα",
+        "weekly_availability": "Η εβδομαδιαία διαθεσιμότητά σου",
+        "availability_help": "Επίλεξε τις ημέρες που θέλεις να διδάσκεις και μετά τις ώρες έναρξης και λήξης.",
+        "from": "Από",
+        "until": "Έως",
+        "save_profile": "Αποθήκευση προφίλ και διαθεσιμότητας",
+        "monday": "Δευτέρα",
+        "tuesday": "Τρίτη",
+        "wednesday": "Τετάρτη",
+        "thursday": "Πέμπτη",
+        "friday": "Παρασκευή",
+        "saturday": "Σάββατο",
+        "sunday": "Κυριακή",
+        "teaching_qualification": "Διδακτικό προσόν",
+        "back_dashboard": "Επιστροφή στον πίνακα",
+        "admin_dashboard": "Αιτήσεις εκπαιδευτικών",
+        "admin_private": "Αυτή η σελίδα είναι ιδιωτική και εμφανίζεται μόνο μετά τη σύνδεση διαχειριστή.",
+        "test_application": "Δοκιμή αίτησης",
+        "test_teacher": "Δοκιμή εκπαιδευτικού",
+        "applicant": "Υποψήφιος",
+        "subject": "Μάθημα",
+        "proof": "Αποδεικτικό",
+        "status": "Κατάσταση",
+        "submitted": "Υποβλήθηκε",
+        "action": "Ενέργεια",
+        "view": "Προβολή",
+        "approved": "Εγκρίθηκε",
+        "declined": "Απορρίφθηκε",
+        "pending": "Σε αναμονή",
+    },
+}
+
+
+@app.context_processor
+def inject_portal_translations():
+    selected_language = request.args.get(
+        "lang",
+        session.get("portal_language", "en")
+    )
+
+    if selected_language not in PORTAL_TRANSLATIONS:
+        selected_language = "en"
+
+    if request.args.get("lang") in PORTAL_TRANSLATIONS:
+        session["portal_language"] = selected_language
+
+    return {
+        "portal_t": PORTAL_TRANSLATIONS[selected_language],
+        "portal_lang": selected_language,
+        "subject_t": SUBJECT_TRANSLATIONS[selected_language],
+    }
+
+
+
+SUBJECT_TRANSLATIONS = {
+    "en": {
+        "English": "English",
+        "Spanish": "Spanish",
+        "Greek": "Greek",
+        "French": "French",
+        "Maths": "Maths",
+        "Physics": "Physics",
+        "Dance": "Dance",
+        "Zumba": "Zumba",
+        "Chess": "Chess",
+        "Guitar": "Guitar",
+        "Acoustic Guitar": "Acoustic Guitar",
+        "Electric Piano": "Electric Piano",
+        "Violin": "Violin",
+        "Singing": "Singing",
+        "Painting": "Painting",
+        "Other": "Other",
+    },
+    "es": {
+        "English": "Inglés",
+        "Spanish": "Español",
+        "Greek": "Griego",
+        "French": "Francés",
+        "Maths": "Matemáticas",
+        "Physics": "Física",
+        "Dance": "Baile",
+        "Zumba": "Zumba",
+        "Chess": "Ajedrez",
+        "Guitar": "Guitarra",
+        "Acoustic Guitar": "Guitarra acústica",
+        "Electric Piano": "Piano eléctrico",
+        "Violin": "Violín",
+        "Singing": "Canto",
+        "Painting": "Pintura",
+        "Other": "Otra asignatura",
+    },
+    "el": {
+        "English": "Αγγλικά",
+        "Spanish": "Ισπανικά",
+        "Greek": "Ελληνικά",
+        "French": "Γαλλικά",
+        "Maths": "Μαθηματικά",
+        "Physics": "Φυσική",
+        "Dance": "Χορός",
+        "Zumba": "Zumba",
+        "Chess": "Σκάκι",
+        "Guitar": "Κιθάρα",
+        "Acoustic Guitar": "Ακουστική κιθάρα",
+        "Electric Piano": "Ηλεκτρικό πιάνο",
+        "Violin": "Βιολί",
+        "Singing": "Τραγούδι",
+        "Painting": "Ζωγραφική",
+        "Other": "Άλλο μάθημα",
+    },
+}
+
+
+TEACHER_SUBJECTS = {
+    "english": "English",
+    "spanish": "Spanish",
+    "greek": "Greek",
+    "french": "French",
+    "maths": "Maths",
+    "physics": "Physics",
+    "dance": "Dance",
+    "zumba": "Zumba",
+    "chess": "Chess",
+    "guitar": "Guitar",
+    "acoustic-guitar": "Acoustic Guitar",
+    "electric-piano": "Electric Piano",
+    "violin": "Violin",
+    "singing": "Singing",
+    "painting": "Painting",
+    "other": "Other",
+}
+
+PROOF_REQUIREMENTS = {
+    "chess": "Upload evidence showing a chess rating of at least 1200 ELO.",
+    "dance": "Upload a qualification, certificate, professional reference, portfolio or other evidence that you can teach dance.",
+    "zumba": "Upload a Zumba qualification, fitness certificate or other evidence that you can teach Zumba.",
+}
+
+ALLOWED_PROOF_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "doc", "docx", "odt"}
+MAX_PROOF_SIZE = 5 * 1024 * 1024
+
+
+def proof_file_allowed(filename):
+    return (
+        "." in filename
+        and filename.rsplit(".", 1)[1].lower() in ALLOWED_PROOF_EXTENSIONS
+    )
+
+
+@app.route("/teacher-application/<subject_slug>", methods=["GET", "POST"])
+def teacher_application(subject_slug):
+    if subject_slug not in TEACHER_SUBJECTS:
+        return redirect("/become-a-teacher")
+
+    subject_name = TEACHER_SUBJECTS[subject_slug]
+    proof_requirement = PROOF_REQUIREMENTS.get(
+        subject_slug,
+        "Upload a relevant diploma, degree, teaching certificate, portfolio or other evidence that you are qualified to teach this subject."
+    )
+    error = None
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        surname = request.form.get("surname", "").strip()
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        confirm_password = request.form.get("confirm_password", "")
+        custom_subject = request.form.get("custom_subject", "").strip()
+        proof = request.files.get("proof")
+
+        final_subject = custom_subject if subject_slug == "other" else subject_name
+
+        if not name or not surname or not email or not password:
+            error = "Please complete every required field."
+        elif subject_slug == "other" and not custom_subject:
+            error = "Please enter the subject you would like to teach."
+        elif "@" not in email or "." not in email.rsplit("@", 1)[-1]:
+            error = "Please enter a valid email address."
+        elif len(password) < 8:
+            error = "Your password must contain at least 8 characters."
+        elif password != confirm_password:
+            error = "The passwords do not match."
+        elif (
+            not session.get("admin_logged_in")
+            and (not proof or not proof.filename)
+        ):
+            error = "Please upload proof of your teaching ability."
+        elif proof and proof.filename and not proof_file_allowed(proof.filename):
+            error = "Proof must be a PDF, image, DOC, DOCX or ODT file."
+        elif proof and proof.filename:
+            proof.seek(0, os.SEEK_END)
+            proof_size = proof.tell()
+            proof.seek(0)
+
+            if proof_size > MAX_PROOF_SIZE:
+                error = "The proof file must be no larger than 5 MB."
+
+        if not error:
+            upload_directory = os.path.join(
+                app.root_path, "teacher_application_uploads"
+            )
+            os.makedirs(upload_directory, exist_ok=True)
+
+            if proof and proof.filename:
+                original_filename = secure_filename(proof.filename)
+                extension = original_filename.rsplit(".", 1)[1].lower()
+                stored_filename = f"{uuid.uuid4().hex}.{extension}"
+                proof.save(os.path.join(upload_directory, stored_filename))
+            else:
+                original_filename = "Admin test — no proof uploaded"
+                stored_filename = ""
+
+            conn = sqlite3.connect("teacher_applications.db")
+            cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS teacher_applications (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    subject TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    surname TEXT NOT NULL,
+                    email TEXT NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    proof_filename TEXT NOT NULL,
+                    proof_original_name TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute("""
+                INSERT INTO teacher_applications
+                (subject, name, surname, email, password_hash,
+                 proof_filename, proof_original_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                final_subject,
+                name,
+                surname,
+                email,
+                generate_password_hash(password),
+                stored_filename,
+                original_filename,
+            ))
+            application_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+
+            send_email(
+                OWNER_EMAIL,
+                f"New Teacher Application: {final_subject}",
+                f"""A new teacher application has been submitted.
+
+Application ID: {application_id}
+Subject: {final_subject}
+Name: {name} {surname}
+Email: {email}
+Proof file: {original_filename}
+
+The application is waiting for review."""
+            )
+
+            return redirect(f"/teacher-application-success?name={name}")
+
+    return render_template(
+        "teacher_application.html",
+        subject_name=subject_name,
+        subject_slug=subject_slug,
+        proof_requirement=proof_requirement,
+        error=error,
+        admin_testing=session.get("admin_logged_in", False),
+    )
+
+
+
+@app.route("/teacher-application-success")
+def teacher_application_success():
+    applicant_name = request.args.get("name", "").strip()
+    return render_template(
+        "teacher_application_success.html",
+        applicant_name=applicant_name,
+        share_link="https://learningxy.com"
+    )
+
+
+
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    if session.get("admin_logged_in"):
+        return redirect("/admin")
+
+    error = None
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+
+        username_correct = username == ADMIN_USERNAME
+        password_correct = (
+            ADMIN_PASSWORD_HASH
+            and check_password_hash(ADMIN_PASSWORD_HASH, password)
+        )
+
+        if username_correct and password_correct:
+            session.clear()
+            session["admin_logged_in"] = True
+            session.permanent = False
+            return redirect("/admin")
+
+        error = "Incorrect username or password."
+
+    return render_template("admin_login.html", error=error)
+
+
+@app.route("/admin/logout")
+def admin_logout():
+    session.clear()
+    return redirect("/admin/login")
+
+
+@app.route("/admin")
+@admin_required
+def admin_dashboard():
+    permanently_remove_expired_applications()
+
+    applications = []
+    deleted_applications = []
+
+    if "admin_csrf_token" not in session:
+        session["admin_csrf_token"] = uuid.uuid4().hex
+
+    if os.path.exists("teacher_applications.db"):
+        ensure_teacher_delete_columns()
+
+        conn = sqlite3.connect("teacher_applications.db")
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        table_exists = cursor.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='table' AND name='teacher_applications'
+        """).fetchone()
+
+        if table_exists:
+            applications = cursor.execute("""
+                SELECT id, subject, name, surname, email,
+                       proof_filename, proof_original_name,
+                       status, submitted_at
+                FROM teacher_applications
+                WHERE deleted_at IS NULL
+                ORDER BY submitted_at DESC
+            """).fetchall()
+
+            deleted_applications = cursor.execute("""
+                SELECT id, subject, name, surname, deleted_at
+                FROM teacher_applications
+                WHERE deleted_at IS NOT NULL
+                ORDER BY deleted_at DESC
+            """).fetchall()
+
+        conn.close()
+
+    teacher_accounts_by_application = {}
+
+    if os.path.exists("approved_teachers.db"):
+        teacher_conn = sqlite3.connect("approved_teachers.db")
+        teacher_conn.row_factory = sqlite3.Row
+        teacher_cursor = teacher_conn.cursor()
+
+        teacher_rows = teacher_cursor.execute("""
+            SELECT id, application_id
+            FROM approved_teachers
+            WHERE active = 1
+        """).fetchall()
+
+        teacher_accounts_by_application = {
+            row["application_id"]: row["id"]
+            for row in teacher_rows
+        }
+
+        teacher_conn.close()
+
+    return render_template(
+        "admin_dashboard.html",
+        applications=applications,
+        deleted_applications=deleted_applications,
+        teacher_accounts_by_application=teacher_accounts_by_application,
+        csrf_token=session["admin_csrf_token"],
+        current_timestamp=int(time.time())
+    )
+
+
+@app.route("/admin/proof/<filename>")
+@admin_required
+def admin_proof(filename):
+    conn = sqlite3.connect("teacher_applications.db")
+    cursor = conn.cursor()
+    application = cursor.execute("""
+        SELECT id FROM teacher_applications
+        WHERE proof_filename = ? AND proof_filename != ''
+    """, (filename,)).fetchone()
+    conn.close()
+
+    if not application:
+        return "Proof file not found.", 404
+
+    upload_directory = os.path.join(
+        app.root_path, "teacher_application_uploads"
+    )
+    return send_from_directory(
+        upload_directory,
+        filename,
+        as_attachment=True
+    )
+
+
+
+@app.route("/admin/application/<int:application_id>")
+@admin_required
+def admin_application_detail(application_id):
+    conn = sqlite3.connect("teacher_applications.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    application = cursor.execute("""
+        SELECT id, subject, name, surname, email,
+               proof_filename, proof_original_name,
+               status, submitted_at
+        FROM teacher_applications
+        WHERE id = ?
+    """, (application_id,)).fetchone()
+
+    conn.close()
+
+    if not application:
+        return "Application not found.", 404
+
+    if "admin_csrf_token" not in session:
+        session["admin_csrf_token"] = uuid.uuid4().hex
+
+    teacher_account = None
+
+    if os.path.exists("approved_teachers.db"):
+        teacher_conn = sqlite3.connect("approved_teachers.db")
+        teacher_conn.row_factory = sqlite3.Row
+        teacher_cursor = teacher_conn.cursor()
+
+        teacher_account = teacher_cursor.execute("""
+            SELECT id, name, surname, email, subject, active
+            FROM approved_teachers
+            WHERE application_id = ?
+        """, (application_id,)).fetchone()
+
+        teacher_conn.close()
+
+    return render_template(
+        "admin_application_detail.html",
+        application=application,
+        teacher_account=teacher_account,
+        csrf_token=session["admin_csrf_token"]
+    )
+
+
+@app.route("/admin/application/<int:application_id>/decision", methods=["POST"])
+@admin_required
+def admin_application_decision(application_id):
+    submitted_token = request.form.get("csrf_token", "")
+    saved_token = session.get("admin_csrf_token", "")
+    decision = request.form.get("decision", "")
+
+    if not submitted_token or submitted_token != saved_token:
+        return "Invalid security token.", 403
+
+    if decision not in {"approved", "declined"}:
+        return "Invalid application decision.", 400
+
+    conn = sqlite3.connect("teacher_applications.db")
+    cursor = conn.cursor()
+
+    application = cursor.execute("""
+        SELECT name, surname, email, subject
+        FROM teacher_applications
+        WHERE id = ?
+    """, (application_id,)).fetchone()
+
+    if not application:
+        conn.close()
+        return "Application not found.", 404
+
+    cursor.execute("""
+        UPDATE teacher_applications
+        SET status = ?
+        WHERE id = ?
+    """, (decision, application_id))
+
+    conn.commit()
+    conn.close()
+
+    if decision == "approved":
+        create_approved_teacher_account(application_id)
+
+    return redirect(f"/admin/application/{application_id}")
+
+
+@app.route("/admin/application/<int:application_id>/proof-viewer")
+@admin_required
+def admin_proof_viewer(application_id):
+    conn = sqlite3.connect("teacher_applications.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    application = cursor.execute("""
+        SELECT id, name, surname, subject,
+               proof_filename, proof_original_name
+        FROM teacher_applications
+        WHERE id = ? AND deleted_at IS NULL
+    """, (application_id,)).fetchone()
+
+    conn.close()
+
+    if not application or not application["proof_filename"]:
+        return "This application has no proof file.", 404
+
+    return render_template(
+        "admin_proof_viewer.html",
+        application=application
+    )
+
+
+@app.route("/admin/application/<int:application_id>/proof-content")
+@admin_required
+def admin_proof_content(application_id):
+    conn = sqlite3.connect("teacher_applications.db")
+    cursor = conn.cursor()
+
+    application = cursor.execute("""
+        SELECT proof_filename
+        FROM teacher_applications
+        WHERE id = ? AND deleted_at IS NULL
+    """, (application_id,)).fetchone()
+
+    conn.close()
+
+    if not application or not application[0]:
+        return "Proof file not found.", 404
+
+    stored_filename = os.path.basename(application[0])
+    upload_directory = os.path.join(
+        app.root_path, "teacher_application_uploads"
+    )
+    proof_path = os.path.join(upload_directory, stored_filename)
+
+    if not os.path.isfile(proof_path):
+        return "Proof file not found.", 404
+
+    extension = stored_filename.rsplit(".", 1)[-1].lower()
+
+    if extension in {"pdf", "png", "jpg", "jpeg"}:
+        return send_from_directory(
+            upload_directory,
+            stored_filename,
+            as_attachment=False
+        )
+
+    if extension in {"doc", "docx", "odt"}:
+        converted_directory = os.path.join(
+            app.root_path,
+            "teacher_application_previews"
+        )
+        os.makedirs(converted_directory, exist_ok=True)
+
+        converted_filename = (
+            stored_filename.rsplit(".", 1)[0] + ".pdf"
+        )
+        converted_path = os.path.join(
+            converted_directory,
+            converted_filename
+        )
+
+        conversion_needed = (
+            not os.path.isfile(converted_path)
+            or os.path.getmtime(converted_path) < os.path.getmtime(proof_path)
+        )
+
+        if conversion_needed:
+            try:
+                subprocess.run(
+                    [
+                        "libreoffice",
+                        "--headless",
+                        "--convert-to",
+                        "pdf",
+                        "--outdir",
+                        converted_directory,
+                        proof_path,
+                    ],
+                    check=True,
+                    timeout=45,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                return "The document preview could not be created.", 500
+
+        if not os.path.isfile(converted_path):
+            return "The document preview could not be created.", 500
+
+        return send_from_directory(
+            converted_directory,
+            converted_filename,
+            mimetype="application/pdf",
+            as_attachment=False
+        )
+
+    return "This file type cannot be previewed.", 400
+
+
+
+def temporarily_disable_teacher(application_id):
+    if not os.path.exists("approved_teachers.db"):
+        return
+
+    conn = sqlite3.connect("approved_teachers.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        UPDATE approved_teachers
+        SET active = 0
+        WHERE application_id = ?
+    """, (application_id,))
+
+    conn.commit()
+    conn.close()
+
+
+def restore_teacher_after_undo(application_id, previous_status):
+    if previous_status != "approved":
+        return
+
+    if not os.path.exists("approved_teachers.db"):
+        return
+
+    conn = sqlite3.connect("approved_teachers.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        UPDATE approved_teachers
+        SET active = 1
+        WHERE application_id = ?
+    """, (application_id,))
+
+    conn.commit()
+    conn.close()
+
+
+def permanently_delete_teacher_account(application_id):
+    if not os.path.exists("approved_teachers.db"):
+        return
+
+    conn = sqlite3.connect("approved_teachers.db")
+    cursor = conn.cursor()
+
+    teacher = cursor.execute("""
+        SELECT id, profile_image
+        FROM approved_teachers
+        WHERE application_id = ?
+    """, (application_id,)).fetchone()
+
+    if not teacher:
+        conn.close()
+        return
+
+    teacher_id, profile_image = teacher
+
+    cursor.execute("""
+        DELETE FROM teacher_availability
+        WHERE teacher_id = ?
+    """, (teacher_id,))
+
+    cursor.execute("""
+        DELETE FROM approved_teachers
+        WHERE id = ?
+    """, (teacher_id,))
+
+    conn.commit()
+    conn.close()
+
+    if profile_image:
+        image_path = os.path.join(
+            app.root_path,
+            "static",
+            "teacher_profiles",
+            os.path.basename(profile_image)
+        )
+
+        if os.path.isfile(image_path):
+            os.remove(image_path)
+
+
+def ensure_teacher_delete_columns():
+    if not os.path.exists("teacher_applications.db"):
+        return
+
+    conn = sqlite3.connect("teacher_applications.db")
+    cursor = conn.cursor()
+
+    table_exists = cursor.execute("""
+        SELECT name FROM sqlite_master
+        WHERE type='table' AND name='teacher_applications'
+    """).fetchone()
+
+    if table_exists:
+        columns = {
+            row[1] for row in
+            cursor.execute("PRAGMA table_info(teacher_applications)").fetchall()
+        }
+
+        if "deleted_at" not in columns:
+            cursor.execute("""
+                ALTER TABLE teacher_applications
+                ADD COLUMN deleted_at INTEGER
+            """)
+
+        if "status_before_delete" not in columns:
+            cursor.execute("""
+                ALTER TABLE teacher_applications
+                ADD COLUMN status_before_delete TEXT
+            """)
+
+        conn.commit()
+
+    conn.close()
+
+
+def permanently_remove_expired_applications():
+    ensure_teacher_delete_columns()
+
+    if not os.path.exists("teacher_applications.db"):
+        return
+
+    expiry_time = int(time.time()) - 60
+
+    conn = sqlite3.connect("teacher_applications.db")
+    cursor = conn.cursor()
+
+    expired = cursor.execute("""
+        SELECT id, proof_filename
+        FROM teacher_applications
+        WHERE deleted_at IS NOT NULL
+        AND deleted_at <= ?
+    """, (expiry_time,)).fetchall()
+
+    upload_directory = os.path.join(
+        app.root_path, "teacher_application_uploads"
+    )
+
+    for application_id, proof_filename in expired:
+        permanently_delete_teacher_account(application_id)
+
+        if proof_filename:
+            proof_path = os.path.join(
+                upload_directory,
+                os.path.basename(proof_filename)
+            )
+
+            if os.path.isfile(proof_path):
+                os.remove(proof_path)
+
+        cursor.execute("""
+            DELETE FROM teacher_applications
+            WHERE id = ?
+        """, (application_id,))
+
+    conn.commit()
+    conn.close()
+
+
+@app.route("/admin/application/<int:application_id>/delete", methods=["POST"])
+@admin_required
+def admin_delete_application(application_id):
+    submitted_token = request.form.get("csrf_token", "")
+    saved_token = session.get("admin_csrf_token", "")
+
+    if not submitted_token or submitted_token != saved_token:
+        return "Invalid security token.", 403
+
+    ensure_teacher_delete_columns()
+
+    conn = sqlite3.connect("teacher_applications.db")
+    cursor = conn.cursor()
+
+    application = cursor.execute("""
+        SELECT status
+        FROM teacher_applications
+        WHERE id = ? AND deleted_at IS NULL
+    """, (application_id,)).fetchone()
+
+    if not application:
+        conn.close()
+        return "Application not found.", 404
+
+    cursor.execute("""
+        UPDATE teacher_applications
+        SET status_before_delete = status,
+            status = 'pending_delete',
+            deleted_at = ?
+        WHERE id = ?
+    """, (int(time.time()), application_id))
+
+    conn.commit()
+    conn.close()
+
+    temporarily_disable_teacher(application_id)
+
+    session.pop("teacher_id", None)
+    session.pop("admin_testing_teacher", None)
+
+    return redirect("/admin")
+
+
+@app.route("/admin/application/<int:application_id>/undo-delete", methods=["POST"])
+@admin_required
+def admin_undo_delete(application_id):
+    submitted_token = request.form.get("csrf_token", "")
+    saved_token = session.get("admin_csrf_token", "")
+
+    if not submitted_token or submitted_token != saved_token:
+        return "Invalid security token.", 403
+
+    ensure_teacher_delete_columns()
+
+    conn = sqlite3.connect("teacher_applications.db")
+    cursor = conn.cursor()
+
+    application = cursor.execute("""
+        SELECT deleted_at, status_before_delete
+        FROM teacher_applications
+        WHERE id = ? AND deleted_at IS NOT NULL
+    """, (application_id,)).fetchone()
+
+    if not application:
+        conn.close()
+        return "Application is no longer available.", 404
+
+    deleted_at, previous_status = application
+
+    if int(time.time()) - deleted_at >= 60:
+        conn.close()
+        permanently_remove_expired_applications()
+        return redirect("/admin")
+
+    cursor.execute("""
+        UPDATE teacher_applications
+        SET status = ?,
+            deleted_at = NULL,
+            status_before_delete = NULL
+        WHERE id = ?
+    """, (previous_status or "pending", application_id))
+
+    conn.commit()
+    conn.close()
+
+    restore_teacher_after_undo(
+        application_id,
+        previous_status or "pending"
+    )
+
+    return redirect("/admin")
+
+
+@app.route("/admin/finish-expired-deletions", methods=["POST"])
+@admin_required
+def admin_finish_expired_deletions():
+    permanently_remove_expired_applications()
+    return ("", 204)
+
+
+
+
+def get_teacher_qualification(application_id):
+    if not os.path.exists("teacher_applications.db"):
+        return None
+
+    conn = sqlite3.connect("teacher_applications.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    qualification = cursor.execute("""
+        SELECT proof_filename, proof_original_name
+        FROM teacher_applications
+        WHERE id = ?
+    """, (application_id,)).fetchone()
+
+    conn.close()
+    return qualification
+
+
+
+def get_approved_teacher_bookings(teacher_slug):
+    if not os.path.exists("bookings.db"):
+        return []
+
+    conn = sqlite3.connect("bookings.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    table_exists = cursor.execute("""
+        SELECT name
+        FROM sqlite_master
+        WHERE type = 'table' AND name = 'bookings'
+    """).fetchone()
+
+    if not table_exists:
+        conn.close()
+        return []
+
+    bookings = cursor.execute("""
+        SELECT id, day, time, name, email, phone
+        FROM bookings
+        WHERE teacher = ?
+        ORDER BY
+            CASE day
+                WHEN 'Monday' THEN 1
+                WHEN 'Tuesday' THEN 2
+                WHEN 'Wednesday' THEN 3
+                WHEN 'Thursday' THEN 4
+                WHEN 'Friday' THEN 5
+                WHEN 'Saturday' THEN 6
+                WHEN 'Sunday' THEN 7
+                ELSE 8
+            END,
+            time
+    """, (teacher_slug,)).fetchall()
+
+    conn.close()
+    return bookings
+
+
+def teacher_required(function):
+    @wraps(function)
+    def protected_teacher_function(*args, **kwargs):
+        if not session.get("teacher_id"):
+            return redirect("/teacher/login")
+        return function(*args, **kwargs)
+    return protected_teacher_function
+
+
+@app.route("/teacher/login", methods=["GET", "POST"])
+def teacher_login():
+    if session.get("teacher_id"):
+        return redirect("/teacher/dashboard")
+
+    error = None
+
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+
+        conn = sqlite3.connect("approved_teachers.db")
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        teacher = cursor.execute("""
+            SELECT id, email, password_hash, active
+            FROM approved_teachers
+            WHERE lower(email) = lower(?)
+        """, (email,)).fetchone()
+
+        conn.close()
+
+        if (
+            teacher
+            and teacher["active"]
+            and check_password_hash(teacher["password_hash"], password)
+        ):
+            session.clear()
+            session["teacher_id"] = teacher["id"]
+            return redirect("/teacher/dashboard")
+
+        error = "Incorrect email or password, or your account is inactive."
+
+    return render_template("teacher_login.html", error=error)
+
+
+@app.route("/teacher/logout")
+def teacher_logout():
+    was_admin = session.get("admin_logged_in", False)
+
+    session.pop("teacher_id", None)
+    session.pop("admin_testing_teacher", None)
+
+    if was_admin:
+        return redirect("/admin")
+
+    session.clear()
+    return redirect("/teacher/login")
+
+
+@app.route("/teacher/dashboard", methods=["GET", "POST"])
+@teacher_required
+def teacher_dashboard():
+    teacher_id = session["teacher_id"]
+    error = None
+    message = None
+
+    conn = sqlite3.connect("approved_teachers.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    teacher = cursor.execute("""
+        SELECT id, application_id, slug, name, surname, email, subject,
+               profile_image, hourly_rate_pence, active
+        FROM approved_teachers
+        WHERE id = ? AND active = 1
+    """, (teacher_id,)).fetchone()
+
+    if not teacher:
+        conn.close()
+        session.clear()
+        return redirect("/teacher/login")
+
+    if request.method == "POST":
+        rate_text = request.form.get("hourly_rate", "").strip()
+        profile_image = request.files.get("profile_image")
+
+        try:
+            hourly_rate = round(float(rate_text), 2)
+        except ValueError:
+            hourly_rate = 0
+
+        if hourly_rate < 5 or hourly_rate > 200:
+            error = "Your hourly price must be between £5 and £200."
+
+        selected_availability = []
+
+        for day in [
+            "Monday", "Tuesday", "Wednesday", "Thursday",
+            "Friday", "Saturday", "Sunday"
+        ]:
+            if request.form.get(f"available_{day}"):
+                start_time = request.form.get(
+                    f"start_{day}", ""
+                ).strip()
+                end_time = request.form.get(
+                    f"end_{day}", ""
+                ).strip()
+
+                if not start_time or not end_time:
+                    error = f"Choose both times for {day}."
+                    break
+
+                if start_time >= end_time:
+                    error = (
+                        f"The finishing time for {day} must be "
+                        "later than the starting time."
+                    )
+                    break
+
+                selected_availability.append(
+                    (day, start_time, end_time)
+                )
+
+        new_image_filename = teacher["profile_image"]
+
+        if profile_image and profile_image.filename:
+            original_name = secure_filename(profile_image.filename)
+            extension = (
+                original_name.rsplit(".", 1)[-1].lower()
+                if "." in original_name else ""
+            )
+
+            if extension not in {"png", "jpg", "jpeg", "webp"}:
+                error = "Profile pictures must be PNG, JPG, JPEG or WEBP."
+            else:
+                profile_image.seek(0, os.SEEK_END)
+                image_size = profile_image.tell()
+                profile_image.seek(0)
+
+                if image_size > 5 * 1024 * 1024:
+                    error = "The profile picture must be under 5 MB."
+
+        if not error:
+            if profile_image and profile_image.filename:
+                image_directory = os.path.join(
+                    app.root_path,
+                    "static",
+                    "teacher_profiles"
+                )
+                os.makedirs(image_directory, exist_ok=True)
+
+                new_image_filename = (
+                    f"{uuid.uuid4().hex}.{extension}"
+                )
+                new_image_path = os.path.join(
+                    image_directory,
+                    new_image_filename
+                )
+                profile_image.save(new_image_path)
+
+                old_image = teacher["profile_image"]
+
+                if old_image:
+                    old_image_path = os.path.join(
+                        image_directory,
+                        os.path.basename(old_image)
+                    )
+
+                    if os.path.isfile(old_image_path):
+                        os.remove(old_image_path)
+
+            cursor.execute("""
+                UPDATE approved_teachers
+                SET hourly_rate_pence = ?,
+                    profile_image = ?
+                WHERE id = ?
+            """, (
+                int(round(hourly_rate * 100)),
+                new_image_filename,
+                teacher_id,
+            ))
+
+            cursor.execute("""
+                DELETE FROM teacher_availability
+                WHERE teacher_id = ?
+            """, (teacher_id,))
+
+            for day, start_time, end_time in selected_availability:
+                cursor.execute("""
+                    INSERT INTO teacher_availability
+                    (teacher_id, day, start_time, end_time)
+                    VALUES (?, ?, ?, ?)
+                """, (
+                    teacher_id,
+                    day,
+                    start_time,
+                    end_time,
+                ))
+
+            conn.commit()
+            message = "Your teacher profile has been updated."
+
+            teacher = cursor.execute("""
+                SELECT id, application_id, slug, name, surname, email, subject,
+                       profile_image, hourly_rate_pence, active
+                FROM approved_teachers
+                WHERE id = ?
+            """, (teacher_id,)).fetchone()
+
+    availability_rows = cursor.execute("""
+        SELECT day, start_time, end_time
+        FROM teacher_availability
+        WHERE teacher_id = ?
+    """, (teacher_id,)).fetchall()
+
+    conn.close()
+
+    availability = {
+        row["day"]: {
+            "start": row["start_time"],
+            "end": row["end_time"],
+        }
+        for row in availability_rows
+    }
+
+    return render_template(
+        "teacher_dashboard.html",
+        teacher=teacher,
+        availability=availability,
+        error=error,
+        message=message,
+        admin_testing_teacher=session.get(
+            "admin_testing_teacher", False
+        ),
+        qualification=get_teacher_qualification(
+            teacher["application_id"]
+        ),
+        booked_lessons=get_approved_teacher_bookings(
+            teacher["slug"]
+        ),
+    )
+
+
+
+@app.route("/admin/application/<int:application_id>/test-teacher", methods=["POST"])
+@admin_required
+def admin_test_teacher_from_application(application_id):
+    submitted_token = request.form.get("csrf_token", "")
+    saved_token = session.get("admin_csrf_token", "")
+
+    if not submitted_token or submitted_token != saved_token:
+        return "Invalid security token.", 403
+
+    conn = sqlite3.connect("approved_teachers.db")
+    cursor = conn.cursor()
+
+    teacher = cursor.execute("""
+        SELECT id
+        FROM approved_teachers
+        WHERE application_id = ? AND active = 1
+    """, (application_id,)).fetchone()
+
+    conn.close()
+
+    if not teacher:
+        return "Approved teacher account not found.", 404
+
+    session["teacher_id"] = teacher[0]
+    session["admin_testing_teacher"] = True
+
+    return redirect("/teacher/dashboard")
+
+
+
+@app.route("/admin/teacher/<int:teacher_id>/test-login", methods=["POST"])
+@admin_required
+def admin_test_as_teacher(teacher_id):
+    submitted_token = request.form.get("csrf_token", "")
+    saved_token = session.get("admin_csrf_token", "")
+
+    if not submitted_token or submitted_token != saved_token:
+        return "Invalid security token.", 403
+
+    conn = sqlite3.connect("approved_teachers.db")
+    cursor = conn.cursor()
+
+    teacher = cursor.execute("""
+        SELECT id
+        FROM approved_teachers
+        WHERE id = ? AND active = 1
+    """, (teacher_id,)).fetchone()
+
+    conn.close()
+
+    if not teacher:
+        return "Approved teacher account not found.", 404
+
+    session["teacher_id"] = teacher_id
+    session["admin_testing_teacher"] = True
+
+    return redirect("/teacher/dashboard")
+
+
+
+@app.route("/admin/stop-teacher-test")
+@admin_required
+def admin_stop_teacher_test():
+    session.pop("teacher_id", None)
+    session.pop("admin_testing_teacher", None)
+    return redirect("/admin")
+
+
+
+@app.route("/teacher/qualification")
+@teacher_required
+def teacher_qualification_viewer():
+    teacher_id = session["teacher_id"]
+
+    conn = sqlite3.connect("approved_teachers.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    teacher = cursor.execute("""
+        SELECT id, application_id, name, surname, subject
+        FROM approved_teachers
+        WHERE id = ? AND active = 1
+    """, (teacher_id,)).fetchone()
+
+    conn.close()
+
+    if not teacher:
+        return "Teacher account not found.", 404
+
+    qualification = get_teacher_qualification(
+        teacher["application_id"]
+    )
+
+    if not qualification or not qualification["proof_filename"]:
+        return "No qualification file was uploaded.", 404
+
+    return render_template(
+        "teacher_qualification_viewer.html",
+        teacher=teacher,
+        qualification=qualification
+    )
+
+
+@app.route("/teacher/qualification-content")
+@teacher_required
+def teacher_qualification_content():
+    teacher_id = session["teacher_id"]
+
+    conn = sqlite3.connect("approved_teachers.db")
+    cursor = conn.cursor()
+
+    teacher = cursor.execute("""
+        SELECT application_id
+        FROM approved_teachers
+        WHERE id = ? AND active = 1
+    """, (teacher_id,)).fetchone()
+
+    conn.close()
+
+    if not teacher:
+        return "Teacher account not found.", 404
+
+    qualification = get_teacher_qualification(teacher[0])
+
+    if not qualification or not qualification["proof_filename"]:
+        return "No qualification file was uploaded.", 404
+
+    stored_filename = os.path.basename(
+        qualification["proof_filename"]
+    )
+
+    upload_directory = os.path.join(
+        app.root_path,
+        "teacher_application_uploads"
+    )
+    proof_path = os.path.join(upload_directory, stored_filename)
+
+    if not os.path.isfile(proof_path):
+        return "Qualification file not found.", 404
+
+    extension = stored_filename.rsplit(".", 1)[-1].lower()
+
+    if extension in {"pdf", "png", "jpg", "jpeg"}:
+        return send_from_directory(
+            upload_directory,
+            stored_filename,
+            as_attachment=False
+        )
+
+    if extension in {"doc", "docx", "odt"}:
+        converted_directory = os.path.join(
+            app.root_path,
+            "teacher_application_previews"
+        )
+        os.makedirs(converted_directory, exist_ok=True)
+
+        converted_filename = (
+            stored_filename.rsplit(".", 1)[0] + ".pdf"
+        )
+        converted_path = os.path.join(
+            converted_directory,
+            converted_filename
+        )
+
+        if (
+            not os.path.isfile(converted_path)
+            or os.path.getmtime(converted_path)
+            < os.path.getmtime(proof_path)
+        ):
+            try:
+                subprocess.run(
+                    [
+                        "libreoffice",
+                        "--headless",
+                        "--convert-to",
+                        "pdf",
+                        "--outdir",
+                        converted_directory,
+                        proof_path,
+                    ],
+                    check=True,
+                    timeout=45,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+            except (
+                subprocess.CalledProcessError,
+                subprocess.TimeoutExpired,
+            ):
+                return "The qualification preview could not be created.", 500
+
+        return send_from_directory(
+            converted_directory,
+            converted_filename,
+            mimetype="application/pdf",
+            as_attachment=False
+        )
+
+    return "This qualification file cannot be previewed.", 400
+
 
 @app.route("/success-preview")
 def success_preview():

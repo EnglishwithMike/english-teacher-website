@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Application #{{ application.id }} | LearningXY Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+</head>
+<body>
+
+<main class="admin-application-page">
+    <section class="admin-application-panel">
+        <div class="admin-detail-header">
+            <div>
+                <a class="teacher-back-link" href="/admin">
+                    <i class="fa-solid fa-arrow-left"></i>
+                    Back to applications
+                </a>
+
+                <h1>{{ application.name }} {{ application.surname }}</h1>
+                <p>Teacher application #{{ application.id }}</p>
+            </div>
+
+            <span class="application-status status-{{ application.status }}">
+                {{ application.status|title }}
+            </span>
+        </div>
+
+        <div class="application-details-grid">
+            <div class="application-detail">
+                <span>Email address</span>
+                <a href="mailto:{{ application.email }}">
+                    {{ application.email }}
+                </a>
+            </div>
+
+            <div class="application-detail">
+                <span>Subject</span>
+                <strong>{{ application.subject }}</strong>
+            </div>
+
+            <div class="application-detail">
+                <span>Submitted</span>
+                <strong>{{ application.submitted_at }}</strong>
+            </div>
+
+            <div class="application-detail">
+                <span>Proof</span>
+
+                {% if application.proof_filename %}
+                    <a class="view-proof-button"
+                       href="/admin/application/{{ application.id }}/proof-viewer"
+                       >
+                        <i class="fa-solid fa-file"></i>
+                        View proof
+                    </a>
+                {% else %}
+                    <strong class="admin-test-label">
+                        Admin test — no file uploaded
+                    </strong>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if teacher_account and teacher_account.active %}
+            <section class="admin-teacher-test-section">
+                <div>
+                    <h2>Test Teacher Account</h2>
+                    <p>
+                        Open this teacher’s private dashboard without using
+                        their password.
+                    </p>
+                </div>
+
+                <form method="POST"
+                      action="/admin/teacher/{{ teacher_account.id }}/test-login">
+                    <input type="hidden"
+                           name="csrf_token"
+                           value="{{ csrf_token }}">
+
+                    <button type="submit" class="test-as-teacher-button">
+                        <i class="fa-solid fa-user-secret"></i>
+                        Test as {{ teacher_account.name }}
+                    </button>
+                </form>
+            </section>
+        {% endif %}
+
+        <section class="application-decision-section">
+            <h2>Application decision</h2>
+
+            <div class="application-decision-buttons">
+                <form method="POST"
+                      action="/admin/application/{{ application.id }}/decision">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="decision" value="approved">
+
+                    <button class="approve-application-button"
+                            type="submit"
+                            onclick="return confirm('Approve this teacher application?')">
+                        <i class="fa-solid fa-check"></i>
+                        Approve Application
+                    </button>
+                </form>
+
+                <form method="POST"
+                      action="/admin/application/{{ application.id }}/decision">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="decision" value="declined">
+
+                    <button class="decline-application-button"
+                            type="submit"
+                            onclick="return confirm('Decline this teacher application?')">
+                        <i class="fa-solid fa-xmark"></i>
+                        Decline Application
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <section class="delete-application-section">
+            <h2>Delete application</h2>
+
+            <p>
+                This permanently deletes the application and its uploaded
+                proof file. This action cannot be undone.
+            </p>
+
+            <form method="POST"
+                  action="/admin/application/{{ application.id }}/delete">
+                <input type="hidden"
+                       name="csrf_token"
+                       value="{{ csrf_token }}">
+
+                <button class="delete-application-button"
+                        type="submit"
+                        onclick="return confirm('Permanently delete this application? This cannot be undone.')">
+                    <i class="fa-solid fa-trash"></i>
+                    Delete Application
+                </button>
+            </form>
+        </section>
+    </section>
+</main>
+
+</body>
+</html>

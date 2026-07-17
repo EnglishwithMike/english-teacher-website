@@ -1,8 +1,10 @@
 <!DOCTYPE html>
-<html>
+<html lang="{{ lang }}">
 <head>
     <title>{{ t.book_your_lesson }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     {% include "posthog.html" %}
 </head>
 <body>
@@ -14,70 +16,158 @@
 </div>
 
 <div class="main-container">
-
     <div class="left-column">
 
-        <img src="{{ url_for('static', filename='images/' + teacher + '.jpg') }}"
-             alt="{{ teacher_info.name }}"
-             class="profile-photo">
+        {% if dynamic_teacher %}
+            {% if teacher_info.profile_image %}
+                <img
+                    src="/static/teacher_profiles/{{ teacher_info.profile_image }}"
+                    alt="{{ teacher_info.full_name }}"
+                    class="profile-photo">
+            {% else %}
+                <div class="public-teacher-photo-placeholder">
+                    <i class="fa-solid fa-user"></i>
+                </div>
+            {% endif %}
+        {% else %}
+            <img
+                src="{{ url_for('static', filename='images/' + teacher + '.jpg') }}"
+                alt="{{ teacher_info.name }}"
+                class="profile-photo">
+        {% endif %}
 
         <div class="bio">
-            <h2>{{ t.about }} {{ teacher_info.name }}</h2>
-
-            {% if teacher == "mike" %}
-            <p><strong>🇬🇧 English</strong></p>
-            <p>{{ t.mike_bio_1 }}</p>
-            <p>{{ t.mike_bio_2 }}</p>
-            <p>{{ t.mike_bio_3 }}</p>
-            {% elif teacher == "michalis" %}
-            <p><strong>🇬🇷 Greek</strong></p>
-            <p>{{ t.michalis_bio }}</p>
+            {% if dynamic_teacher %}
+                <h2>{{ t.about }} {{ teacher_info.full_name }}</h2>
+                <p><strong>🎓 {{ teacher_info.subject }}</strong></p>
+                <p>
+                    £{{ '%.2f'|format(
+                        teacher_info.hourly_rate_pence / 100
+                    ) }}
+                    {% if lang == "es" %}
+                        por hora
+                    {% elif lang == "el" %}
+                        ανά ώρα
+                    {% else %}
+                        per hour
+                    {% endif %}
+                </p>
             {% else %}
-            <p><strong>🇪🇸 Spanish</strong></p>
-            <p>{{ t.emily_bio_1 }}</p>
-            <p>{{ t.emily_bio_2 }}</p>
+                <h2>{{ t.about }} {{ teacher_info.name }}</h2>
+
+                {% if teacher == "mike" %}
+                    <p><strong>🇬🇧 English</strong></p>
+                    <p>{{ t.mike_bio_1 }}</p>
+                    <p>{{ t.mike_bio_2 }}</p>
+                    <p>{{ t.mike_bio_3 }}</p>
+                {% elif teacher == "michalis" %}
+                    <p><strong>🇬🇷 Greek</strong></p>
+                    <p>{{ t.michalis_bio }}</p>
+                {% else %}
+                    <p><strong>🇪🇸 Spanish</strong></p>
+                    <p>{{ t.emily_bio_1 }}</p>
+                    <p>{{ t.emily_bio_2 }}</p>
+                {% endif %}
             {% endif %}
         </div>
-
     </div>
 
     <div class="hero">
-
         <h1>{{ t.book_your_lesson }}</h1>
-
         <p>{{ teacher_info.lesson_name }}</p>
 
-        {% if teacher == "emily" %}
-        <p>{{ t.select_day_ms }}</p>
-        {% else %}
-        <p>{{ t.select_day_mf }}</p>
-        {% endif %}
+        {% if dynamic_teacher %}
+            {% if available_days %}
+                <p>
+                    {% if lang == "es" %}
+                        Selecciona un día disponible
+                    {% elif lang == "el" %}
+                        Επίλεξε διαθέσιμη ημέρα
+                    {% else %}
+                        Select an available day
+                    {% endif %}
+                </p>
 
-        {% if teacher == "mike" %}
-        <p>
-            <a onclick="posthog.capture('day_selected', {teacher: 'mike', day: 'Monday', lang: '{{ lang }}'})" href="/booking/Monday?lang={{ lang }}">Monday</a>
-            <a onclick="posthog.capture('day_selected', {teacher: 'mike', day: 'Tuesday', lang: '{{ lang }}'})" href="/booking/Tuesday?lang={{ lang }}">Tuesday</a>
-            <a onclick="posthog.capture('day_selected', {teacher: 'mike', day: 'Wednesday', lang: '{{ lang }}'})" href="/booking/Wednesday?lang={{ lang }}">Wednesday</a>
-            <a onclick="posthog.capture('day_selected', {teacher: 'mike', day: 'Thursday', lang: '{{ lang }}'})" href="/booking/Thursday?lang={{ lang }}">Thursday</a>
-            <a onclick="posthog.capture('day_selected', {teacher: 'mike', day: 'Friday', lang: '{{ lang }}'})" href="/booking/Friday?lang={{ lang }}">Friday</a>
-        </p>
-        {% else %}
-        <p>
-            <a onclick="posthog.capture('day_selected', {teacher: '{{ teacher }}', day: 'Monday', lang: '{{ lang }}'})" href="/booking/{{ teacher }}/Monday?lang={{ lang }}">Monday</a>
-            <a onclick="posthog.capture('day_selected', {teacher: '{{ teacher }}', day: 'Tuesday', lang: '{{ lang }}'})" href="/booking/{{ teacher }}/Tuesday?lang={{ lang }}">Tuesday</a>
-            <a onclick="posthog.capture('day_selected', {teacher: '{{ teacher }}', day: 'Wednesday', lang: '{{ lang }}'})" href="/booking/{{ teacher }}/Wednesday?lang={{ lang }}">Wednesday</a>
-            <a onclick="posthog.capture('day_selected', {teacher: '{{ teacher }}', day: 'Thursday', lang: '{{ lang }}'})" href="/booking/{{ teacher }}/Thursday?lang={{ lang }}">Thursday</a>
-            <a onclick="posthog.capture('day_selected', {teacher: '{{ teacher }}', day: 'Friday', lang: '{{ lang }}'})" href="/booking/{{ teacher }}/Friday?lang={{ lang }}">Friday</a>
-            {% if teacher == "emily" %}
-            <a onclick="posthog.capture('day_selected', {teacher: '{{ teacher }}', day: 'Saturday', lang: '{{ lang }}'})" href="/booking/{{ teacher }}/Saturday?lang={{ lang }}">Saturday</a>
+                <div class="dynamic-teacher-days">
+                    {% for day in available_days %}
+                        <a
+                            href="/booking/teacher/{{ teacher }}/{{ day }}?lang={{ lang }}"
+                            onclick="posthog.capture(
+                                'day_selected',
+                                {
+                                    teacher: '{{ teacher }}',
+                                    day: '{{ day }}',
+                                    lang: '{{ lang }}'
+                                }
+                            )">
+                            {% if lang == "es" %}
+                                {{ {
+                                    "Monday":"Lunes",
+                                    "Tuesday":"Martes",
+                                    "Wednesday":"Miércoles",
+                                    "Thursday":"Jueves",
+                                    "Friday":"Viernes",
+                                    "Saturday":"Sábado",
+                                    "Sunday":"Domingo"
+                                }[day] }}
+                            {% elif lang == "el" %}
+                                {{ {
+                                    "Monday":"Δευτέρα",
+                                    "Tuesday":"Τρίτη",
+                                    "Wednesday":"Τετάρτη",
+                                    "Thursday":"Πέμπτη",
+                                    "Friday":"Παρασκευή",
+                                    "Saturday":"Σάββατο",
+                                    "Sunday":"Κυριακή"
+                                }[day] }}
+                            {% else %}
+                                {{ day }}
+                            {% endif %}
+                        </a>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="no-public-availability">
+                    {% if lang == "es" %}
+                        Este profesor todavía no ha añadido horarios disponibles.
+                    {% elif lang == "el" %}
+                        Αυτός ο εκπαιδευτικός δεν έχει προσθέσει ακόμη διαθέσιμες ώρες.
+                    {% else %}
+                        This teacher has not added any available times yet.
+                    {% endif %}
+                </div>
             {% endif %}
-        </p>
+        {% else %}
+            {% if teacher == "emily" %}
+                <p>{{ t.select_day_ms }}</p>
+            {% else %}
+                <p>{{ t.select_day_mf }}</p>
+            {% endif %}
+
+            <p>
+                {% set static_days =
+                    ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] %}
+
+                {% if teacher == "emily" %}
+                    {% set static_days = static_days + ["Saturday"] %}
+                {% endif %}
+
+                {% for day in static_days %}
+                    {% if teacher == "mike" %}
+                        <a href="/booking/{{ day }}?lang={{ lang }}">
+                            {{ day }}
+                        </a>
+                    {% else %}
+                        <a href="/booking/{{ teacher }}/{{ day }}?lang={{ lang }}">
+                            {{ day }}
+                        </a>
+                    {% endif %}
+                {% endfor %}
+            </p>
         {% endif %}
 
         <a href="/?lang={{ lang }}">{{ t.back_home }}</a>
-
     </div>
-
 </div>
 
 </body>

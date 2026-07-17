@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Teacher Dashboard | LearningXY</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+</head>
+<body>
+
+<main class="teacher-dashboard-page">
+    <header class="teacher-dashboard-header">
+        <div>
+            <h1>Welcome, {{ teacher.name }}</h1>
+            <p>{{ teacher.subject }} teacher</p>
+        </div>
+
+        <a href="/teacher/logout">Log Out</a>
+    </header>
+
+    {% if admin_testing_teacher %}
+        <div class="admin-teacher-testing-banner">
+            <div>
+                <i class="fa-solid fa-user-secret"></i>
+                <strong>Admin Testing Mode</strong>
+                You are testing this teacher’s account.
+            </div>
+
+            <a href="/admin/stop-teacher-test">
+                Stop Testing and Return to Admin
+            </a>
+        </div>
+    {% endif %}
+
+    {% if error %}
+        <div class="application-error">{{ error }}</div>
+    {% endif %}
+
+    {% if message %}
+        <div class="teacher-update-success">{{ message }}</div>
+    {% endif %}
+
+    <form method="POST"
+          enctype="multipart/form-data"
+          class="teacher-settings-form">
+
+        <section class="teacher-settings-panel">
+            <h2>Your Profile</h2>
+
+            {% if teacher.profile_image %}
+                <img class="teacher-profile-preview"
+                     src="/static/teacher_profiles/{{ teacher.profile_image }}"
+                     alt="{{ teacher.name }}">
+            {% else %}
+                <div class="teacher-profile-placeholder">
+                    <i class="fa-solid fa-user"></i>
+                </div>
+            {% endif %}
+
+            <label for="profile_image">Profile picture</label>
+            <input id="profile_image"
+                   name="profile_image"
+                   type="file"
+                   accept=".png,.jpg,.jpeg,.webp">
+
+            <small>PNG, JPG, JPEG or WEBP. Maximum 5 MB.</small>
+
+            <div class="teacher-qualification-card">
+                <div class="qualification-card-icon">
+                    <i class="fa-solid fa-graduation-cap"></i>
+                </div>
+
+                <div>
+                    <h3>Qualification</h3>
+
+                    {% if qualification and qualification.proof_filename %}
+                        <p>{{ qualification.proof_original_name }}</p>
+
+                        <a href="/teacher/qualification">
+                            <i class="fa-solid fa-eye"></i>
+                            View Qualification
+                        </a>
+                    {% else %}
+                        <p>No qualification file was uploaded.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <label for="hourly_rate">Your price per hour</label>
+
+            <div class="teacher-price-input">
+                <span>£</span>
+                <input id="hourly_rate"
+                       name="hourly_rate"
+                       type="number"
+                       min="5"
+                       max="200"
+                       step="0.01"
+                       value="{{ '%.2f'|format(teacher.hourly_rate_pence / 100) }}"
+                       required>
+            </div>
+        </section>
+
+        <section class="teacher-bookings-panel">
+            <div class="teacher-bookings-heading">
+                <div>
+                    <h2>
+                        <i class="fa-solid fa-calendar-check"></i>
+
+                        {% if portal_lang == "es" %}
+                            Clases reservadas
+                        {% elif portal_lang == "el" %}
+                            Κρατημένα μαθήματα
+                        {% else %}
+                            Booked Lessons
+                        {% endif %}
+                    </h2>
+
+                    <p>
+                        {% if portal_lang == "es" %}
+                            Aquí aparecerán las clases que los estudiantes hayan reservado contigo.
+                        {% elif portal_lang == "el" %}
+                            Εδώ θα εμφανίζονται τα μαθήματα που έχουν κλείσει οι μαθητές μαζί σου.
+                        {% else %}
+                            Lessons booked by students will appear here.
+                        {% endif %}
+                    </p>
+                </div>
+
+                <span class="teacher-booking-count">
+                    {{ booked_lessons|length }}
+                </span>
+            </div>
+
+            {% if booked_lessons %}
+                <div class="teacher-bookings-list">
+                    {% for lesson in booked_lessons %}
+                        <article class="teacher-booking-card">
+                            <div class="teacher-booking-date">
+                                <strong>{{ lesson.day }}</strong>
+                                <span>{{ lesson.time }} UK</span>
+                            </div>
+
+                            <div class="teacher-booking-student">
+                                <strong>{{ lesson.name }}</strong>
+
+                                <a href="mailto:{{ lesson.email }}">
+                                    <i class="fa-solid fa-envelope"></i>
+                                    {{ lesson.email }}
+                                </a>
+
+                                {% if lesson.phone %}
+                                    <span>
+                                        <i class="fa-solid fa-phone"></i>
+                                        {{ lesson.phone }}
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </article>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="no-teacher-bookings">
+                    <i class="fa-regular fa-calendar"></i>
+
+                    <strong>
+                        {% if portal_lang == "es" %}
+                            No hay clases reservadas actualmente.
+                        {% elif portal_lang == "el" %}
+                            Δεν υπάρχουν κρατημένα μαθήματα αυτή τη στιγμή.
+                        {% else %}
+                            No lessons are currently booked.
+                        {% endif %}
+                    </strong>
+                </div>
+            {% endif %}
+        </section>
+
+        <section class="teacher-settings-panel">
+            <h2>Your Weekly Availability</h2>
+            <p>
+                Tick each day you want to teach, then choose your starting
+                and finishing time.
+            </p>
+
+            <div class="teacher-availability-list">
+
+                <div class="teacher-availability-row">
+                    <label class="availability-day">
+                        <input type="checkbox"
+                               name="available_Monday"
+                               {% if "Monday" in availability %}checked{% endif %}>
+                        <strong>Monday</strong>
+                    </label>
+
+                    <label>
+                        From
+                        <input type="time"
+                               name="start_Monday"
+                               value="{{ availability.get('Monday', {}).get('start', '10:00') }}">
+                    </label>
+
+                    <label>
+                        Until
+                        <input type="time"
+                               name="end_Monday"
+                               value="{{ availability.get('Monday', {}).get('end', '17:00') }}">
+                    </label>
+                </div>
+
+                <div class="teacher-availability-row">
+                    <label class="availability-day">
+                        <input type="checkbox"
+                               name="available_Tuesday"
+                               {% if "Tuesday" in availability %}checked{% endif %}>
+                        <strong>Tuesday</strong>
+                    </label>
+
+                    <label>
+                        From
+                        <input type="time"
+                               name="start_Tuesday"
+                               value="{{ availability.get('Tuesday', {}).get('start', '10:00') }}">
+                    </label>
+
+                    <label>
+                        Until
+                        <input type="time"
+                               name="end_Tuesday"
+                               value="{{ availability.get('Tuesday', {}).get('end', '17:00') }}">
+                    </label>
+                </div>
+
+                <div class="teacher-availability-row">
+                    <label class="availability-day">
+                        <input type="checkbox"
+                               name="available_Wednesday"
+                               {% if "Wednesday" in availability %}checked{% endif %}>
+                        <strong>Wednesday</strong>
+                    </label>
+
+                    <label>
+                        From
+                        <input type="time"
+                               name="start_Wednesday"
+                               value="{{ availability.get('Wednesday', {}).get('start', '10:00') }}">
+                    </label>
+
+                    <label>
+                        Until
+                        <input type="time"
+                               name="end_Wednesday"
+                               value="{{ availability.get('Wednesday', {}).get('end', '17:00') }}">
+                    </label>
+                </div>
+
+                <div class="teacher-availability-row">
+                    <label class="availability-day">
+                        <input type="checkbox"
+                               name="available_Thursday"
+                               {% if "Thursday" in availability %}checked{% endif %}>
+                        <strong>Thursday</strong>
+                    </label>
+
+                    <label>
+                        From
+                        <input type="time"
+                               name="start_Thursday"
+                               value="{{ availability.get('Thursday', {}).get('start', '10:00') }}">
+                    </label>
+
+                    <label>
+                        Until
+                        <input type="time"
+                               name="end_Thursday"
+                               value="{{ availability.get('Thursday', {}).get('end', '17:00') }}">
+                    </label>
+                </div>
+
+                <div class="teacher-availability-row">
+                    <label class="availability-day">
+                        <input type="checkbox"
+                               name="available_Friday"
+                               {% if "Friday" in availability %}checked{% endif %}>
+                        <strong>Friday</strong>
+                    </label>
+
+                    <label>
+                        From
+                        <input type="time"
+                               name="start_Friday"
+                               value="{{ availability.get('Friday', {}).get('start', '10:00') }}">
+                    </label>
+
+                    <label>
+                        Until
+                        <input type="time"
+                               name="end_Friday"
+                               value="{{ availability.get('Friday', {}).get('end', '17:00') }}">
+                    </label>
+                </div>
+
+                <div class="teacher-availability-row">
+                    <label class="availability-day">
+                        <input type="checkbox"
+                               name="available_Saturday"
+                               {% if "Saturday" in availability %}checked{% endif %}>
+                        <strong>Saturday</strong>
+                    </label>
+
+                    <label>
+                        From
+                        <input type="time"
+                               name="start_Saturday"
+                               value="{{ availability.get('Saturday', {}).get('start', '10:00') }}">
+                    </label>
+
+                    <label>
+                        Until
+                        <input type="time"
+                               name="end_Saturday"
+                               value="{{ availability.get('Saturday', {}).get('end', '17:00') }}">
+                    </label>
+                </div>
+
+                <div class="teacher-availability-row">
+                    <label class="availability-day">
+                        <input type="checkbox"
+                               name="available_Sunday"
+                               {% if "Sunday" in availability %}checked{% endif %}>
+                        <strong>Sunday</strong>
+                    </label>
+
+                    <label>
+                        From
+                        <input type="time"
+                               name="start_Sunday"
+                               value="{{ availability.get('Sunday', {}).get('start', '10:00') }}">
+                    </label>
+
+                    <label>
+                        Until
+                        <input type="time"
+                               name="end_Sunday"
+                               value="{{ availability.get('Sunday', {}).get('end', '17:00') }}">
+                    </label>
+                </div>
+
+            </div>
+        </section>
+
+        <button class="save-teacher-settings" type="submit">
+            <i class="fa-solid fa-floppy-disk"></i>
+            Save Profile and Availability
+        </button>
+    </form>
+</main>
+
+
+<script>
+document.querySelectorAll(
+    '.teacher-availability-row input[type="time"]'
+).forEach((timeInput) => {
+    const timeSelect = document.createElement("select");
+
+    timeSelect.name = timeInput.name;
+    timeSelect.className = "teacher-time-select";
+    timeSelect.setAttribute(
+        "aria-label",
+        timeInput.name.startsWith("start_")
+            ? "Choose starting time"
+            : "Choose finishing time"
+    );
+
+    const savedValue = timeInput.value;
+
+    for (let hour = 0; hour < 24; hour++) {
+        for (let minute of [0, 30]) {
+            const hourText = String(hour).padStart(2, "0");
+            const minuteText = String(minute).padStart(2, "0");
+            const value = `${hourText}:${minuteText}`;
+
+            const displayDate = new Date(
+                `2000-01-01T${value}:00`
+            );
+
+            const displayTime = displayDate.toLocaleTimeString(
+                [],
+                {
+                    hour: "2-digit",
+                    minute: "2-digit"
+                }
+            );
+
+            const option = document.createElement("option");
+            option.value = value;
+            option.textContent = displayTime;
+
+            if (value === savedValue) {
+                option.selected = true;
+            }
+
+            timeSelect.appendChild(option);
+        }
+    }
+
+    timeInput.replaceWith(timeSelect);
+});
+</script>
+
+</body>
+</html>

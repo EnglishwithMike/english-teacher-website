@@ -5,3 +5,10 @@ __pycache__/
 bookings.db
 app_backup.py
 bookings_backup.db
+teacher_application_uploads/
+teacher_applications.db
+teacher_application_previews/
+approved_teachers.db
+static/teacher_profiles/
+*.backup-*
+setup_admin.py

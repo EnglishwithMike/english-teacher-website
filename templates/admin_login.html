@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Admin Login | LearningXY</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+</head>
+<body>
+
+<main class="admin-login-page">
+    <section class="admin-login-panel">
+        <h1>LearningXY Admin</h1>
+        <p>Sign in to access the private dashboard.</p>
+
+        {% if error %}
+            <div class="application-error">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" class="admin-login-form">
+            <label for="username">Username</label>
+            <input id="username"
+                   name="username"
+                   type="text"
+                   autocomplete="username"
+                   required
+                   autofocus>
+
+            <label for="password">Password</label>
+            <input id="password"
+                   name="password"
+                   type="password"
+                   autocomplete="current-password"
+                   required>
+
+            <button type="submit">Sign In</button>
+        </form>
+
+        <a class="teacher-back-link" href="/">← Return to homepage</a>
+    </section>
+</main>
+
+</body>
+</html>

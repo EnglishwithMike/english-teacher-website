@@ -17,7 +17,9 @@
     </p>
 
     <div class="day-grid">
-        {% if teacher == "emily" and day == "Wednesday" %}
+        {% if dynamic_teacher %}
+    {% set times = available_times %}
+{% elif teacher == "emily" and day == "Wednesday" %}
     {% set times = ["10:00","11:00","12:00","13:00","14:00","15:00"] %}
     {% set booked = times %}
 {% elif teacher == "emily" and day == "Thursday" %}
@@ -65,10 +67,22 @@
 
     <br>
 
-    {% if teacher == "emily" %}
-        <a href="/booking/emily?lang={{ lang }}">{{ t.back_calendar }}</a>
+    {% if dynamic_teacher %}
+        <a href="/booking/teacher/{{ teacher }}?lang={{ lang }}">
+            {{ t.back_calendar }}
+        </a>
+    {% elif teacher == "emily" %}
+        <a href="/booking/emily?lang={{ lang }}">
+            {{ t.back_calendar }}
+        </a>
+    {% elif teacher == "michalis" %}
+        <a href="/booking/michalis?lang={{ lang }}">
+            {{ t.back_calendar }}
+        </a>
     {% else %}
-        <a href="/booking?lang={{ lang }}">{{ t.back_calendar }}</a>
+        <a href="/booking?lang={{ lang }}">
+            {{ t.back_calendar }}
+        </a>
     {% endif %}
 
 </div>

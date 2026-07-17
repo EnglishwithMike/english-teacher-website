@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="{{ portal_lang }}">
+<head>
+    <title>{{ portal_t.application_received }} | LearningXY</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    {% include "posthog.html" %}
+</head>
+<body>
+
+<main class="teacher-success-page">
+    {% include "portal_language_switcher.html" %}
+
+    <section class="teacher-success-panel">
+        <div class="success-checkmark">
+            <i class="fa-solid fa-check"></i>
+        </div>
+
+        <h1>
+            {{ portal_t.congratulations }}{% if applicant_name %},
+            {{ applicant_name }}{% endif %}!
+        </h1>
+
+        <h2>{{ portal_t.application_received }}</h2>
+
+        <p>{{ portal_t.review_message }}</p>
+        <p>{{ portal_t.share_message }}</p>
+
+        <div class="teacher-share-box">
+            <label for="teacher-share-link">
+                {{ portal_t.share_link }}
+            </label>
+
+            <div class="teacher-share-row">
+                <input id="teacher-share-link"
+                       type="text"
+                       value="{{ share_link }}"
+                       readonly>
+
+                <button type="button" onclick="copyTeacherLink()">
+                    <i class="fa-solid fa-copy"></i>
+                    <span id="copy-button-text">
+                        {{ portal_t.copy }}
+                    </span>
+                </button>
+            </div>
+        </div>
+
+        <p>{{ portal_t.social_message }}</p>
+
+        <p class="happy-teaching-message">
+            {{ portal_t.happy_teaching }}
+        </p>
+
+        <a class="return-home-button"
+           href="/?lang={{ portal_lang }}">
+            {{ portal_t.return_home }}
+        </a>
+    </section>
+</main>
+
+<script>
+function copyTeacherLink() {
+    const link = document.getElementById("teacher-share-link");
+    const buttonText = document.getElementById("copy-button-text");
+
+    navigator.clipboard.writeText(link.value).then(() => {
+        buttonText.textContent = {{ portal_t.copied|tojson }};
+
+        setTimeout(() => {
+            buttonText.textContent = {{ portal_t.copy|tojson }};
+        }, 2000);
+    });
+}
+</script>
+
+</body>
+</html>

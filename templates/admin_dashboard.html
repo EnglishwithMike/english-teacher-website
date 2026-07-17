@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Admin Dashboard | LearningXY</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+</head>
+<body>
+
+<main class="admin-dashboard-page">
+    <header class="admin-dashboard-header">
+        <div>
+            <h1>Teacher Applications</h1>
+            <p>This page is private and visible only after admin login.</p>
+        </div>
+
+        <div class="admin-header-actions">
+            <div class="admin-test-buttons">
+                <a href="/become-a-teacher">
+                    <i class="fa-solid fa-flask"></i>
+                    Test Application
+                </a>
+
+                {% if teacher_accounts_by_application %}
+                    {% set test_teacher_id =
+                        teacher_accounts_by_application.values()
+                        | list | first %}
+
+                    <form method="POST"
+                          action="/admin/teacher/{{ test_teacher_id }}/test-login">
+                        <input type="hidden"
+                               name="csrf_token"
+                               value="{{ csrf_token }}">
+
+                        <button class="header-test-teacher-button"
+                                type="submit">
+                            <i class="fa-solid fa-user-secret"></i>
+                            Test Teacher
+                        </button>
+                    </form>
+                {% endif %}
+            </div>
+
+            <a class="admin-logout-button" href="/admin/logout">
+                Log Out
+            </a>
+        </div>
+    </header>
+
+    {% if applications %}
+        <div class="admin-table-wrapper">
+            <table class="admin-applications-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Applicant</th>
+                        <th>Subject</th>
+                        <th>Email</th>
+                        <th>Proof</th>
+                        <th>Status</th>
+                        <th>Submitted</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {% for application in applications %}
+                        <tr>
+                            <td>{{ application.id }}</td>
+                            <td>{{ application.name }} {{ application.surname }}</td>
+                            <td>{{ application.subject }}</td>
+                            <td>
+                                <a href="mailto:{{ application.email }}">
+                                    {{ application.email }}
+                                </a>
+                            </td>
+                            <td>
+                                {% if application.proof_filename %}
+                                    <a href="/admin/proof/{{ application.proof_filename }}">
+                                        Download proof
+                                    </a>
+                                {% else %}
+                                    <span class="admin-test-label">Admin test</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="application-status status-{{ application.status }}">
+                                    {{ application.status|title }}
+                                </span>
+                            </td>
+                            <td>{{ application.submitted_at }}</td>
+                            <td>
+                                <a class="view-application-button"
+                                   href="/admin/application/{{ application.id }}">
+                                    View
+                                </a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <section class="no-applications-panel">
+            <i class="fa-solid fa-inbox"></i>
+            <h2>No applications yet</h2>
+            <p>Submitted teacher applications will appear here.</p>
+        </section>
+    {% endif %}
+
+    {% if deleted_applications %}
+        <section class="recently-deleted-panel" id="recently-deleted-panel">
+            <h2>
+                <i class="fa-solid fa-trash-arrow-up"></i>
+                Recently Deleted
+            </h2>
+
+            {% for application in deleted_applications %}
+                {% set seconds_left =
+                    60 - (current_timestamp - application.deleted_at) %}
+
+                <div class="deleted-application-row"
+                     data-deleted-at="{{ application.deleted_at }}"
+                     id="deleted-application-{{ application.id }}">
+
+                    <div>
+                        <strong>
+                            {{ application.name }} {{ application.surname }}
+                        </strong>
+                        <span>{{ application.subject }}</span>
+                    </div>
+
+                    <div class="deleted-application-actions">
+                        <span class="deletion-countdown">
+                            {{ seconds_left }} seconds remaining
+                        </span>
+
+                        <form method="POST"
+                              action="/admin/application/{{ application.id }}/undo-delete">
+                            <input type="hidden"
+                                   name="csrf_token"
+                                   value="{{ csrf_token }}">
+
+                            <button type="submit" class="undo-delete-button">
+                                <i class="fa-solid fa-rotate-left"></i>
+                                Undo
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            {% endfor %}
+        </section>
+    {% endif %}
+
+<script>
+const deletedRows = document.querySelectorAll(".deleted-application-row");
+
+function updateDeletionCountdowns() {
+    const currentTime = Math.floor(Date.now() / 1000);
+    let expiredApplicationFound = false;
+
+    deletedRows.forEach((row) => {
+        const deletedAt = Number(row.dataset.deletedAt);
+        const secondsRemaining = Math.max(
+            0,
+            60 - (currentTime - deletedAt)
+        );
+
+        const countdown = row.querySelector(".deletion-countdown");
+
+        if (secondsRemaining > 0) {
+            countdown.textContent =
+                secondsRemaining + " seconds remaining";
+        } else {
+            row.remove();
+            expiredApplicationFound = true;
+        }
+    });
+
+    const remainingRows =
+        document.querySelectorAll(".deleted-application-row");
+
+    if (remainingRows.length === 0) {
+        const panel = document.getElementById("recently-deleted-panel");
+
+        if (panel) {
+            panel.remove();
+        }
+    }
+
+    if (expiredApplicationFound) {
+        fetch("/admin/finish-expired-deletions", {
+            method: "POST"
+        });
+    }
+}
+
+updateDeletionCountdowns();
+setInterval(updateDeletionCountdowns, 1000);
+</script>
+
+</main>
+
+</body>
+</html>
