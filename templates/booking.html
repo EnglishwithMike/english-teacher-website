@@ -40,6 +40,9 @@
             {% if dynamic_teacher %}
                 <h2>{{ t.about }} {{ teacher_info.full_name }}</h2>
                 <p><strong>🎓 {{ teacher_info.subject }}</strong></p>
+                {% if teacher_info.bio %}
+                    <p class="dynamic-teacher-bio">{{ teacher_info.bio }}</p>
+                {% endif %}
                 <p>
                     £{{ '%.2f'|format(
                         teacher_info.hourly_rate_pence / 100

@@ -1,7 +1,16 @@
 from flask import Flask, render_template, request, redirect, session, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-import sqlite3
+import database as sqlite3
+from cloud_storage import (
+    PROOF_BUCKET,
+    PROFILE_BUCKET,
+    cache_profile_image,
+    inline_response,
+    proof_preview_response,
+    remove_file,
+    upload_file,
+)
 import os
 import uuid
 import time
@@ -288,7 +297,7 @@ def get_public_approved_teachers():
         return []
 
     teachers = cursor.execute("""
-        SELECT id, slug, name, surname, subject,
+        SELECT id, slug, name, surname, subject, bio,
                profile_image, hourly_rate_pence
         FROM approved_teachers
         WHERE active = 1
@@ -296,6 +305,10 @@ def get_public_approved_teachers():
     """).fetchall()
 
     conn.close()
+
+    for teacher in teachers:
+        cache_profile_image(teacher["profile_image"], app.root_path)
+
     return teachers
 
 
@@ -309,7 +322,7 @@ def get_approved_teacher_by_slug(slug):
 
     teacher = cursor.execute("""
         SELECT id, application_id, slug, name, surname,
-               email, subject, profile_image,
+               email, subject, bio, profile_image,
                hourly_rate_pence, active
         FROM approved_teachers
         WHERE slug = ? AND active = 1
@@ -320,6 +333,8 @@ def get_approved_teacher_by_slug(slug):
     if not teacher:
         return None
 
+    cache_profile_image(teacher["profile_image"], app.root_path)
+
     return {
         "id": teacher["id"],
         "application_id": teacher["application_id"],
@@ -329,6 +344,7 @@ def get_approved_teacher_by_slug(slug):
         "full_name": f"{teacher['name']} {teacher['surname']}",
         "email": teacher["email"],
         "subject": teacher["subject"],
+        "bio": teacher["bio"],
         "profile_image": teacher["profile_image"],
         "hourly_rate_pence": teacher["hourly_rate_pence"],
         "flag": "🎓",
@@ -950,6 +966,7 @@ def create_approved_teacher_account(application_id):
             email TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             subject TEXT NOT NULL,
+            bio TEXT NOT NULL DEFAULT '',
             profile_image TEXT,
             hourly_rate_pence INTEGER NOT NULL DEFAULT 1000,
             active INTEGER NOT NULL DEFAULT 1,
@@ -1427,6 +1444,7 @@ def teacher_application(subject_slug):
                 extension = original_filename.rsplit(".", 1)[1].lower()
                 stored_filename = f"{uuid.uuid4().hex}.{extension}"
                 proof.save(os.path.join(upload_directory, stored_filename))
+                upload_file(PROOF_BUCKET, stored_filename, proof)
             else:
                 original_filename = "Admin test — no proof uploaded"
                 stored_filename = ""
@@ -1623,14 +1641,10 @@ def admin_proof(filename):
     if not application:
         return "Proof file not found.", 404
 
-    upload_directory = os.path.join(
-        app.root_path, "teacher_application_uploads"
-    )
-    return send_from_directory(
-        upload_directory,
-        filename,
-        as_attachment=True
-    )
+    try:
+        return inline_response(PROOF_BUCKET, filename, filename)
+    except Exception:
+        return "Proof file not found.", 404
 
 
 
@@ -1751,87 +1765,20 @@ def admin_proof_viewer(application_id):
 def admin_proof_content(application_id):
     conn = sqlite3.connect("teacher_applications.db")
     cursor = conn.cursor()
-
     application = cursor.execute("""
         SELECT proof_filename
         FROM teacher_applications
         WHERE id = ? AND deleted_at IS NULL
     """, (application_id,)).fetchone()
-
     conn.close()
 
     if not application or not application[0]:
         return "Proof file not found.", 404
 
-    stored_filename = os.path.basename(application[0])
-    upload_directory = os.path.join(
-        app.root_path, "teacher_application_uploads"
-    )
-    proof_path = os.path.join(upload_directory, stored_filename)
-
-    if not os.path.isfile(proof_path):
+    try:
+        return proof_preview_response(os.path.basename(application[0]))
+    except Exception:
         return "Proof file not found.", 404
-
-    extension = stored_filename.rsplit(".", 1)[-1].lower()
-
-    if extension in {"pdf", "png", "jpg", "jpeg"}:
-        return send_from_directory(
-            upload_directory,
-            stored_filename,
-            as_attachment=False
-        )
-
-    if extension in {"doc", "docx", "odt"}:
-        converted_directory = os.path.join(
-            app.root_path,
-            "teacher_application_previews"
-        )
-        os.makedirs(converted_directory, exist_ok=True)
-
-        converted_filename = (
-            stored_filename.rsplit(".", 1)[0] + ".pdf"
-        )
-        converted_path = os.path.join(
-            converted_directory,
-            converted_filename
-        )
-
-        conversion_needed = (
-            not os.path.isfile(converted_path)
-            or os.path.getmtime(converted_path) < os.path.getmtime(proof_path)
-        )
-
-        if conversion_needed:
-            try:
-                subprocess.run(
-                    [
-                        "libreoffice",
-                        "--headless",
-                        "--convert-to",
-                        "pdf",
-                        "--outdir",
-                        converted_directory,
-                        proof_path,
-                    ],
-                    check=True,
-                    timeout=45,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                )
-            except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-                return "The document preview could not be created.", 500
-
-        if not os.path.isfile(converted_path):
-            return "The document preview could not be created.", 500
-
-        return send_from_directory(
-            converted_directory,
-            converted_filename,
-            mimetype="application/pdf",
-            as_attachment=False
-        )
-
-    return "This file type cannot be previewed.", 400
 
 
 
@@ -1905,6 +1852,7 @@ def permanently_delete_teacher_account(application_id):
     conn.close()
 
     if profile_image:
+        remove_file(PROFILE_BUCKET, os.path.basename(profile_image))
         image_path = os.path.join(
             app.root_path,
             "static",
@@ -1977,10 +1925,9 @@ def permanently_remove_expired_applications():
         permanently_delete_teacher_account(application_id)
 
         if proof_filename:
-            proof_path = os.path.join(
-                upload_directory,
-                os.path.basename(proof_filename)
-            )
+            stored_proof = os.path.basename(proof_filename)
+            remove_file(PROOF_BUCKET, stored_proof)
+            proof_path = os.path.join(upload_directory, stored_proof)
 
             if os.path.isfile(proof_path):
                 os.remove(proof_path)
@@ -2227,7 +2174,7 @@ def teacher_dashboard():
     cursor = conn.cursor()
 
     teacher = cursor.execute("""
-        SELECT id, application_id, slug, name, surname, email, subject,
+        SELECT id, application_id, slug, name, surname, email, subject, bio,
                profile_image, hourly_rate_pence, active
         FROM approved_teachers
         WHERE id = ? AND active = 1
@@ -2240,7 +2187,9 @@ def teacher_dashboard():
 
     if request.method == "POST":
         rate_text = request.form.get("hourly_rate", "").strip()
+        bio_text = request.form.get("bio", "").strip()
         profile_image = request.files.get("profile_image")
+        qualification_file = request.files.get("qualification_file")
 
         try:
             hourly_rate = round(float(rate_text), 2)
@@ -2249,6 +2198,8 @@ def teacher_dashboard():
 
         if hourly_rate < 5 or hourly_rate > 200:
             error = "Your hourly price must be between £5 and £200."
+        elif len(bio_text) > 2000:
+            error = "Your bio must be 2,000 characters or fewer."
 
         selected_availability = []
 
@@ -2298,7 +2249,64 @@ def teacher_dashboard():
                 if image_size > 5 * 1024 * 1024:
                     error = "The profile picture must be under 5 MB."
 
+        qualification_original_name = None
+        qualification_extension = None
+
+        if qualification_file and qualification_file.filename and not error:
+            qualification_original_name = secure_filename(
+                qualification_file.filename
+            )
+            qualification_extension = (
+                qualification_original_name.rsplit(".", 1)[-1].lower()
+                if "." in qualification_original_name else ""
+            )
+
+            if qualification_extension not in ALLOWED_PROOF_EXTENSIONS:
+                error = (
+                    "Qualifications must be PDF, PNG, JPG, JPEG, "
+                    "DOC, DOCX or ODT files."
+                )
+            else:
+                qualification_file.seek(0, os.SEEK_END)
+                qualification_size = qualification_file.tell()
+                qualification_file.seek(0)
+
+                if qualification_size > MAX_PROOF_SIZE:
+                    error = "The qualification file must be under 5 MB."
+
         if not error:
+            if qualification_file and qualification_file.filename:
+                old_qualification = cursor.execute("""
+                    SELECT proof_filename
+                    FROM teacher_applications
+                    WHERE id = ?
+                """, (teacher["application_id"],)).fetchone()
+
+                new_qualification_filename = (
+                    f"{uuid.uuid4().hex}.{qualification_extension}"
+                )
+                upload_file(
+                    PROOF_BUCKET,
+                    new_qualification_filename,
+                    qualification_file,
+                )
+
+                cursor.execute("""
+                    UPDATE teacher_applications
+                    SET proof_filename = ?, proof_original_name = ?
+                    WHERE id = ?
+                """, (
+                    new_qualification_filename,
+                    qualification_original_name,
+                    teacher["application_id"],
+                ))
+
+                if old_qualification and old_qualification[0]:
+                    remove_file(
+                        PROOF_BUCKET,
+                        os.path.basename(old_qualification[0]),
+                    )
+
             if profile_image and profile_image.filename:
                 image_directory = os.path.join(
                     app.root_path,
@@ -2315,10 +2323,16 @@ def teacher_dashboard():
                     new_image_filename
                 )
                 profile_image.save(new_image_path)
+                upload_file(
+                    PROFILE_BUCKET,
+                    new_image_filename,
+                    profile_image,
+                )
 
                 old_image = teacher["profile_image"]
 
                 if old_image:
+                    remove_file(PROFILE_BUCKET, os.path.basename(old_image))
                     old_image_path = os.path.join(
                         image_directory,
                         os.path.basename(old_image)
@@ -2330,11 +2344,13 @@ def teacher_dashboard():
             cursor.execute("""
                 UPDATE approved_teachers
                 SET hourly_rate_pence = ?,
-                    profile_image = ?
+                    profile_image = ?,
+                    bio = ?
                 WHERE id = ?
             """, (
                 int(round(hourly_rate * 100)),
                 new_image_filename,
+                bio_text,
                 teacher_id,
             ))
 
@@ -2359,7 +2375,7 @@ def teacher_dashboard():
             message = "Your teacher profile has been updated."
 
             teacher = cursor.execute("""
-                SELECT id, application_id, slug, name, surname, email, subject,
+                SELECT id, application_id, slug, name, surname, email, subject, bio,
                        profile_image, hourly_rate_pence, active
                 FROM approved_teachers
                 WHERE id = ?
@@ -2507,98 +2523,28 @@ def teacher_qualification_viewer():
 @teacher_required
 def teacher_qualification_content():
     teacher_id = session["teacher_id"]
-
     conn = sqlite3.connect("approved_teachers.db")
     cursor = conn.cursor()
-
     teacher = cursor.execute("""
         SELECT application_id
         FROM approved_teachers
         WHERE id = ? AND active = 1
     """, (teacher_id,)).fetchone()
-
     conn.close()
 
     if not teacher:
         return "Teacher account not found.", 404
 
     qualification = get_teacher_qualification(teacher[0])
-
     if not qualification or not qualification["proof_filename"]:
         return "No qualification file was uploaded.", 404
 
-    stored_filename = os.path.basename(
-        qualification["proof_filename"]
-    )
-
-    upload_directory = os.path.join(
-        app.root_path,
-        "teacher_application_uploads"
-    )
-    proof_path = os.path.join(upload_directory, stored_filename)
-
-    if not os.path.isfile(proof_path):
+    try:
+        return proof_preview_response(
+            os.path.basename(qualification["proof_filename"])
+        )
+    except Exception:
         return "Qualification file not found.", 404
-
-    extension = stored_filename.rsplit(".", 1)[-1].lower()
-
-    if extension in {"pdf", "png", "jpg", "jpeg"}:
-        return send_from_directory(
-            upload_directory,
-            stored_filename,
-            as_attachment=False
-        )
-
-    if extension in {"doc", "docx", "odt"}:
-        converted_directory = os.path.join(
-            app.root_path,
-            "teacher_application_previews"
-        )
-        os.makedirs(converted_directory, exist_ok=True)
-
-        converted_filename = (
-            stored_filename.rsplit(".", 1)[0] + ".pdf"
-        )
-        converted_path = os.path.join(
-            converted_directory,
-            converted_filename
-        )
-
-        if (
-            not os.path.isfile(converted_path)
-            or os.path.getmtime(converted_path)
-            < os.path.getmtime(proof_path)
-        ):
-            try:
-                subprocess.run(
-                    [
-                        "libreoffice",
-                        "--headless",
-                        "--convert-to",
-                        "pdf",
-                        "--outdir",
-                        converted_directory,
-                        proof_path,
-                    ],
-                    check=True,
-                    timeout=45,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                )
-            except (
-                subprocess.CalledProcessError,
-                subprocess.TimeoutExpired,
-            ):
-                return "The qualification preview could not be created.", 500
-
-        return send_from_directory(
-            converted_directory,
-            converted_filename,
-            mimetype="application/pdf",
-            as_attachment=False
-        )
-
-    return "This qualification file cannot be previewed.", 400
 
 
 @app.route("/success-preview")

@@ -87,6 +87,29 @@
                 </div>
             </div>
 
+            <label for="qualification_file">
+                {% if qualification and qualification.proof_filename %}
+                    Replace qualification
+                {% else %}
+                    Upload qualification
+                {% endif %}
+            </label>
+            <input id="qualification_file"
+                   name="qualification_file"
+                   type="file"
+                   accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.odt">
+            <small>
+                PDF, PNG, JPG, JPEG, DOC, DOCX or ODT. Maximum 5 MB.
+            </small>
+
+            <label for="bio">Add bio</label>
+            <textarea id="bio"
+                      name="bio"
+                      rows="7"
+                      maxlength="2000"
+                      placeholder="Tell students about your experience, qualifications and teaching style.">{{ teacher.bio or '' }}</textarea>
+            <small>Maximum 2,000 characters.</small>
+
             <label for="hourly_rate">Your price per hour</label>
 
             <div class="teacher-price-input">

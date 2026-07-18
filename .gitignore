@@ -12,3 +12,10 @@ approved_teachers.db
 static/teacher_profiles/
 *.backup-*
 setup_admin.py
+
+# Local migration and patch helpers
+add_qualification_upload.py
+add_teacher_bio.py
+add_teacher_bio_fixed.py
+apply_cloud_storage.py
+app-for-supabase.txt

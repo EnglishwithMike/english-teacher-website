@@ -42,7 +42,7 @@
                 <button type="button" onclick="copyTeacherLink()">
                     <i class="fa-solid fa-copy"></i>
                     <span id="copy-button-text">
-                        {{ portal_t.copy }}
+                        {{ portal_t["copy"] }}
                     </span>
                 </button>
             </div>
@@ -70,7 +70,7 @@ function copyTeacherLink() {
         buttonText.textContent = {{ portal_t.copied|tojson }};
 
         setTimeout(() => {
-            buttonText.textContent = {{ portal_t.copy|tojson }};
+            buttonText.textContent = {{ portal_t["copy"]|tojson }};
         }, 2000);
     });
 }
