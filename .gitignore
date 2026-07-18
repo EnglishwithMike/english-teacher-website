@@ -19,3 +19,6 @@ add_teacher_bio.py
 add_teacher_bio_fixed.py
 apply_cloud_storage.py
 app-for-supabase.txt
+
+add_customer_support_v1.py
+*.backup-before-customer-support

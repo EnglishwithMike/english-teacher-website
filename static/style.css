@@ -1920,3 +1920,210 @@ button:hover {
     white-space: pre-line;
     line-height: 1.6;
 }
+
+
+.homepage-teacher-login {
+    position: absolute;
+    top: 24px;
+    left: 24px;
+    z-index: 100;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 12px 18px;
+    background: white;
+    color: #243b72;
+    border: 3px solid #243b72;
+    border-radius: 12px;
+    text-decoration: none;
+    font-weight: 700;
+    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.18);
+}
+
+.homepage-teacher-login:hover {
+    background: #f2f5ff;
+    color: #c8102e;
+    border-color: #c8102e;
+}
+
+@media (max-width: 700px) {
+    .homepage-teacher-login {
+        top: 15px;
+        left: 15px;
+        padding: 10px 13px;
+        font-size: 14px;
+    }
+}
+
+
+.teacher-dashboard-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.teacher-homepage-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 11px 17px;
+    background: white !important;
+    color: #243b72 !important;
+    border: 3px solid #243b72;
+    border-radius: 10px;
+    text-decoration: none;
+    font-weight: 700;
+    box-sizing: border-box;
+}
+
+.teacher-homepage-button:hover {
+    background: #f2f5ff !important;
+}
+
+.teacher-logout-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+@media (max-width: 650px) {
+    .teacher-dashboard-actions {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+}
+
+
+/* Customer support feature */
+.homepage-customer-support {
+    position: fixed;
+    left: 22px;
+    bottom: 22px;
+    z-index: 120;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 18px;
+    background: #fff;
+    color: #243b72;
+    border: 3px solid #243b72;
+    border-radius: 12px;
+    box-shadow: 0 5px 14px rgba(0, 0, 0, .18);
+    text-decoration: none;
+    font-weight: 700;
+}
+
+.homepage-customer-support:hover {
+    background: #f0f4ff;
+}
+
+.customer-support-page,
+.admin-messages-page {
+    width: min(950px, calc(100% - 30px));
+    margin: 35px auto;
+}
+
+.support-language-switcher {
+    margin-bottom: 14px;
+}
+
+.customer-support-panel,
+.customer-message-card,
+.customer-message-empty {
+    background: rgba(255, 255, 255, .92);
+    border: 3px solid #243b72;
+    border-radius: 18px;
+    padding: 28px;
+    box-sizing: border-box;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .12);
+}
+
+.customer-support-form,
+.admin-reply-form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 22px 0;
+}
+
+.customer-support-form input,
+.customer-support-form textarea,
+.admin-reply-form textarea {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #243b72;
+    border-radius: 9px;
+    box-sizing: border-box;
+    font: inherit;
+}
+
+.customer-support-form button,
+.admin-reply-form button {
+    align-self: flex-start;
+}
+
+.admin-customer-messages-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 18px;
+    background: #fff;
+    color: #243b72;
+    border: 3px solid #243b72;
+    border-radius: 10px;
+    text-decoration: none;
+    font-weight: 700;
+}
+
+.customer-message-list {
+    display: grid;
+    gap: 22px;
+    margin-top: 25px;
+}
+
+.customer-message-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 15px;
+}
+
+.customer-message-heading h2,
+.customer-message-heading p {
+    margin-top: 0;
+}
+
+.support-status {
+    padding: 7px 12px;
+    border-radius: 999px;
+    background: #e8ecf8;
+    color: #243b72;
+    font-weight: 700;
+}
+
+.customer-message-text,
+.previous-support-reply {
+    margin: 16px 0;
+    padding: 16px;
+    border-radius: 10px;
+    background: #f4f6fb;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.previous-support-reply {
+    border-left: 5px solid #1e7e34;
+}
+
+@media (max-width: 760px) {
+    .homepage-customer-support {
+        left: 12px;
+        bottom: 12px;
+        padding: 10px 13px;
+        font-size: 14px;
+    }
+
+    .customer-message-heading {
+        flex-direction: column;
+    }
+}

@@ -2547,6 +2547,219 @@ def teacher_qualification_content():
         return "Qualification file not found.", 404
 
 
+SUPPORT_TRANSLATIONS = {
+    "en": {
+        "page_title": "Customer Support",
+        "heading": "How can we help?",
+        "intro": "Send us a message and our team will get back to you by email.",
+        "email": "Your email address",
+        "message": "How can we help you?",
+        "send": "Send Message",
+        "home": "Return to Homepage",
+        "success": "Thank you. Your message has been sent to our team.",
+        "error": "Please enter a valid email address and a message.",
+    },
+    "es": {
+        "page_title": "Atención al cliente",
+        "heading": "¿Cómo podemos ayudarte?",
+        "intro": "Envíanos un mensaje y nuestro equipo te responderá por correo electrónico.",
+        "email": "Tu correo electrónico",
+        "message": "¿Cómo podemos ayudarte?",
+        "send": "Enviar mensaje",
+        "home": "Volver a la página principal",
+        "success": "Gracias. Tu mensaje ha sido enviado a nuestro equipo.",
+        "error": "Introduce un correo electrónico válido y un mensaje.",
+    },
+    "el": {
+        "page_title": "Υποστήριξη πελατών",
+        "heading": "Πώς μπορούμε να βοηθήσουμε;",
+        "intro": "Στείλε μας ένα μήνυμα και η ομάδα μας θα σου απαντήσει μέσω email.",
+        "email": "Η διεύθυνση email σου",
+        "message": "Πώς μπορούμε να σε βοηθήσουμε;",
+        "send": "Αποστολή μηνύματος",
+        "home": "Επιστροφή στην αρχική σελίδα",
+        "success": "Ευχαριστούμε. Το μήνυμά σου στάλθηκε στην ομάδα μας.",
+        "error": "Συμπλήρωσε ένα έγκυρο email και ένα μήνυμα.",
+    },
+}
+
+
+def ensure_customer_support_table():
+    conn = sqlite3.connect("customer_support.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS customer_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL,
+            message TEXT NOT NULL,
+            admin_reply TEXT,
+            status TEXT NOT NULL DEFAULT 'unread',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            replied_at TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+@app.route("/customer-support", methods=["GET", "POST"])
+def customer_support():
+    lang = request.values.get("lang", "en")
+    if lang not in SUPPORT_TRANSLATIONS:
+        lang = "en"
+
+    support_t = SUPPORT_TRANSLATIONS[lang]
+    error = None
+    success_message = None
+    submitted_email = ""
+    submitted_message = ""
+
+    if request.method == "POST":
+        submitted_email = request.form.get("email", "").strip().lower()
+        submitted_message = request.form.get("message", "").strip()
+
+        email_is_valid = (
+            "@" in submitted_email
+            and "." in submitted_email.rsplit("@", 1)[-1]
+            and len(submitted_email) <= 254
+        )
+
+        if not email_is_valid or not submitted_message:
+            error = support_t["error"]
+        elif len(submitted_message) > 5000:
+            error = support_t["error"]
+        else:
+            ensure_customer_support_table()
+            conn = sqlite3.connect("customer_support.db")
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO customer_messages (email, message)
+                VALUES (?, ?)
+            """, (submitted_email, submitted_message))
+            conn.commit()
+            conn.close()
+
+            try:
+                if OWNER_EMAIL:
+                    send_email(
+                        OWNER_EMAIL,
+                        "New LearningXY Customer Support Message",
+                        f"""A new customer support message was received.
+
+Customer email: {submitted_email}
+
+Message:
+{submitted_message}
+
+Sign in to the LearningXY admin dashboard to reply.
+"""
+                    )
+            except Exception:
+                pass
+
+            success_message = support_t["success"]
+            submitted_email = ""
+            submitted_message = ""
+
+    return render_template(
+        "customer_support.html",
+        lang=lang,
+        support_t=support_t,
+        error=error,
+        success_message=success_message,
+        submitted_email=submitted_email,
+        submitted_message=submitted_message,
+    )
+
+
+@app.route("/admin/customer-messages")
+@admin_required
+def admin_customer_messages():
+    ensure_customer_support_table()
+
+    if "admin_csrf_token" not in session:
+        session["admin_csrf_token"] = uuid.uuid4().hex
+
+    conn = sqlite3.connect("customer_support.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    messages = cursor.execute("""
+        SELECT id, email, message, admin_reply, status,
+               created_at, replied_at
+        FROM customer_messages
+        ORDER BY created_at DESC, id DESC
+    """).fetchall()
+    conn.close()
+
+    return render_template(
+        "admin_customer_messages.html",
+        messages=messages,
+        csrf_token=session["admin_csrf_token"],
+        result=request.args.get("result"),
+    )
+
+
+@app.route("/admin/customer-messages/<int:message_id>/reply", methods=["POST"])
+@admin_required
+def admin_reply_customer_message(message_id):
+    submitted_token = request.form.get("csrf_token", "")
+    saved_token = session.get("admin_csrf_token", "")
+
+    if not saved_token or submitted_token != saved_token:
+        return "Invalid security token.", 403
+
+    reply_text = request.form.get("reply", "").strip()
+    if not reply_text or len(reply_text) > 5000:
+        return redirect("/admin/customer-messages?result=invalid")
+
+    ensure_customer_support_table()
+    conn = sqlite3.connect("customer_support.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    customer_message = cursor.execute("""
+        SELECT id, email, message
+        FROM customer_messages
+        WHERE id = ?
+    """, (message_id,)).fetchone()
+
+    if not customer_message:
+        conn.close()
+        return "Customer message not found.", 404
+
+    email_sent = False
+    try:
+        email_sent = bool(send_email(
+            customer_message["email"],
+            "Reply from LearningXY Customer Support",
+            f"""Hello,
+
+Thank you for contacting LearningXY.
+
+{reply_text}
+
+Kind regards,
+LearningXY Customer Support
+"""
+        ))
+    except Exception:
+        email_sent = False
+
+    if not email_sent:
+        conn.close()
+        return redirect("/admin/customer-messages?result=email-failed")
+
+    cursor.execute("""
+        UPDATE customer_messages
+        SET admin_reply = ?, status = 'replied',
+            replied_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    """, (reply_text, message_id))
+    conn.commit()
+    conn.close()
+
+    return redirect("/admin/customer-messages?result=replied")
+
+
 @app.route("/success-preview")
 def success_preview():
     return render_template(

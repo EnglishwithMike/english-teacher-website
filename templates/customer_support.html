@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+    <title>{{ support_t.page_title }} | LearningXY</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<main class="customer-support-page">
+    <div class="support-language-switcher">
+        <a href="/customer-support?lang=en">🇬🇧</a> |
+        <a href="/customer-support?lang=el">🇬🇷</a> |
+        <a href="/customer-support?lang=es">🇪🇸</a>
+    </div>
+
+    <section class="customer-support-panel">
+        <h1>{{ support_t.heading }}</h1>
+        <p>{{ support_t.intro }}</p>
+
+        {% if error %}
+            <div class="application-error">{{ error }}</div>
+        {% endif %}
+
+        {% if success_message %}
+            <div class="teacher-update-success">{{ success_message }}</div>
+        {% endif %}
+
+        <form method="POST" class="customer-support-form">
+            <input type="hidden" name="lang" value="{{ lang }}">
+
+            <label for="support_email">{{ support_t.email }}</label>
+            <input id="support_email" name="email" type="email"
+                   maxlength="254" value="{{ submitted_email }}" required>
+
+            <label for="support_message">{{ support_t.message }}</label>
+            <textarea id="support_message" name="message" rows="9"
+                      maxlength="5000" required>{{ submitted_message }}</textarea>
+
+            <button type="submit">{{ support_t.send }}</button>
+        </form>
+
+        <a class="teacher-back-link" href="/?lang={{ lang }}">
+            ← {{ support_t.home }}
+        </a>
+    </section>
+</main>
+</body>
+</html>

@@ -11,6 +11,19 @@
 </head>
 <body>
 
+<a class="homepage-teacher-login"
+   href="/teacher/login?lang={{ lang }}">
+
+    {% if lang == "es" %}
+        Acceso para profesores
+    {% elif lang == "el" %}
+        Σύνδεση εκπαιδευτικού
+    {% else %}
+        Teacher Log In
+    {% endif %}
+</a>
+
+
 <div class="language-switcher">
     <a href="/?lang=en">🇬🇧</a> |
     <a href="/?lang=el">🇬🇷</a> |
@@ -239,6 +252,17 @@
 
     </div>
 
+
+    <a class="homepage-customer-support"
+       href="/customer-support?lang={{ lang }}">
+        {% if lang == "es" %}
+            Atención al cliente
+        {% elif lang == "el" %}
+            Υποστήριξη πελατών
+        {% else %}
+            Customer Support
+        {% endif %}
+    </a>
 
     <div class="social-panel">
         <h2>{{ t.follow_socials }}</h2>

@@ -16,7 +16,15 @@
             <p>{{ teacher.subject }} teacher</p>
         </div>
 
-        <a href="/teacher/logout">Log Out</a>
+        <div class="teacher-dashboard-actions">
+            <a class="teacher-homepage-button" href="/">
+                Homepage
+            </a>
+
+            <a class="teacher-logout-button" href="/teacher/logout">
+                Log Out
+            </a>
+        </div>
     </header>
 
     {% if admin_testing_teacher %}

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Customer Messages | LearningXY</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<main class="admin-messages-page">
+    <header class="admin-dashboard-header">
+        <div>
+            <h1>Customer Messages</h1>
+            <p>Read and reply to LearningXY customer support messages.</p>
+        </div>
+
+        <div class="admin-header-actions">
+            <a class="admin-customer-messages-button" href="/admin">
+                Teacher Applications
+            </a>
+            <a class="admin-logout-button" href="/admin/logout">Log Out</a>
+        </div>
+    </header>
+
+    {% if result == "replied" %}
+        <div class="teacher-update-success">Reply sent successfully.</div>
+    {% elif result == "email-failed" %}
+        <div class="application-error">The email could not be sent. Please try again.</div>
+    {% elif result == "invalid" %}
+        <div class="application-error">Please type a reply before sending.</div>
+    {% endif %}
+
+    {% if messages %}
+        <div class="customer-message-list">
+            {% for item in messages %}
+                <article class="customer-message-card status-{{ item.status }}">
+                    <div class="customer-message-heading">
+                        <div>
+                            <h2>
+                                <a href="mailto:{{ item.email }}">{{ item.email }}</a>
+                            </h2>
+                            <p>Received: {{ item.created_at }}</p>
+                        </div>
+                        <span class="support-status">{{ item.status|title }}</span>
+                    </div>
+
+                    <div class="customer-message-text">{{ item.message }}</div>
+
+                    {% if item.admin_reply %}
+                        <div class="previous-support-reply">
+                            <strong>Your reply:</strong>
+                            <p>{{ item.admin_reply }}</p>
+                        </div>
+                    {% endif %}
+
+                    <form method="POST"
+                          action="/admin/customer-messages/{{ item.id }}/reply"
+                          class="admin-reply-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <label for="reply-{{ item.id }}">Reply by email</label>
+                        <textarea id="reply-{{ item.id }}" name="reply"
+                                  rows="5" maxlength="5000" required></textarea>
+                        <button type="submit">Send Reply</button>
+                    </form>
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <section class="customer-message-empty">
+            <h2>No customer messages yet</h2>
+            <p>New support messages will appear here.</p>
+        </section>
+    {% endif %}
+</main>
+</body>
+</html>
