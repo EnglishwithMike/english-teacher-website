@@ -16,6 +16,7 @@ import uuid
 import time
 import subprocess
 from functools import wraps
+from zoneinfo import ZoneInfo, available_timezones
 import stripe
 import resend
 from dotenv import load_dotenv
@@ -324,7 +325,7 @@ def get_approved_teacher_by_slug(slug):
     teacher = cursor.execute("""
         SELECT id, application_id, slug, name, surname,
                email, subject, bio, profile_image,
-               hourly_rate_pence, active
+               hourly_rate_pence, timezone, active
         FROM approved_teachers
         WHERE slug = ? AND active = 1
     """, (slug,)).fetchone()
@@ -348,6 +349,7 @@ def get_approved_teacher_by_slug(slug):
         "bio": teacher["bio"],
         "profile_image": teacher["profile_image"],
         "hourly_rate_pence": teacher["hourly_rate_pence"],
+        "timezone": teacher["timezone"],
         "flag": "🎓",
         "lesson_name": (
             f"{teacher['subject']} Lesson with {teacher['name']}"
@@ -1000,6 +1002,7 @@ def create_approved_teacher_account(application_id):
             bio TEXT NOT NULL DEFAULT '',
             profile_image TEXT,
             hourly_rate_pence INTEGER NOT NULL DEFAULT 1000,
+            timezone TEXT NOT NULL DEFAULT 'Europe/London',
             active INTEGER NOT NULL DEFAULT 1,
             approved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -2206,7 +2209,7 @@ def teacher_dashboard():
 
     teacher = cursor.execute("""
         SELECT id, application_id, slug, name, surname, email, subject, bio,
-               profile_image, hourly_rate_pence, active
+               profile_image, hourly_rate_pence, timezone, active
         FROM approved_teachers
         WHERE id = ? AND active = 1
     """, (teacher_id,)).fetchone()
@@ -2221,6 +2224,9 @@ def teacher_dashboard():
         bio_text = request.form.get("bio", "").strip()
         profile_image = request.files.get("profile_image")
         qualification_file = request.files.get("qualification_file")
+        timezone_name = request.form.get(
+            "timezone", teacher["timezone"] or "Europe/London"
+        ).strip()
 
         try:
             hourly_rate = round(float(rate_text), 2)
@@ -2231,6 +2237,11 @@ def teacher_dashboard():
             error = "Your hourly price must be between £5 and £200."
         elif len(bio_text) > 2000:
             error = "Your bio must be 2,000 characters or fewer."
+        else:
+            try:
+                ZoneInfo(timezone_name)
+            except Exception:
+                error = "Please select a valid timezone."
 
         selected_availability = []
 
@@ -2376,12 +2387,14 @@ def teacher_dashboard():
                 UPDATE approved_teachers
                 SET hourly_rate_pence = ?,
                     profile_image = ?,
-                    bio = ?
+                    bio = ?,
+                    timezone = ?
                 WHERE id = ?
             """, (
                 int(round(hourly_rate * 100)),
                 new_image_filename,
                 bio_text,
+                timezone_name,
                 teacher_id,
             ))
 
@@ -2407,7 +2420,7 @@ def teacher_dashboard():
 
             teacher = cursor.execute("""
                 SELECT id, application_id, slug, name, surname, email, subject, bio,
-                       profile_image, hourly_rate_pence, active
+                       profile_image, hourly_rate_pence, timezone, active
                 FROM approved_teachers
                 WHERE id = ?
             """, (teacher_id,)).fetchone()
@@ -2443,6 +2456,7 @@ def teacher_dashboard():
         booked_lessons=get_approved_teacher_bookings(
             teacher["slug"]
         ),
+        timezone_options=sorted(available_timezones()),
     )
 
 

@@ -2145,3 +2145,25 @@ button:hover {
     background: #c8102e;
     color: #ffffff;
 }
+
+.teacher-timezone-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 22px;
+    max-width: 520px;
+}
+
+.teacher-timezone-field select {
+    width: 100%;
+    padding: 12px;
+    background: #ffffff;
+    color: #243b72;
+    border: 2px solid #243b72;
+    border-radius: 10px;
+    font: inherit;
+}
+
+.teacher-timezone-field small {
+    line-height: 1.4;
+}

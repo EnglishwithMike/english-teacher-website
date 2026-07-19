@@ -131,6 +131,39 @@
                        value="{{ '%.2f'|format(teacher.hourly_rate_pence / 100) }}"
                        required>
             </div>
+
+            <div class="teacher-timezone-field">
+                <label for="timezone">
+                    {% if portal_lang == "es" %}
+                        Tu zona horaria
+                    {% elif portal_lang == "el" %}
+                        Η ζώνη ώρας σου
+                    {% else %}
+                        Your timezone
+                    {% endif %}
+                </label>
+
+                <select id="timezone"
+                        name="timezone"
+                        required>
+                    {% for timezone_name in timezone_options %}
+                        <option value="{{ timezone_name }}"
+                                {% if timezone_name == teacher.timezone %}selected{% endif %}>
+                            {{ timezone_name }}
+                        </option>
+                    {% endfor %}
+                </select>
+
+                <small>
+                    {% if portal_lang == "es" %}
+                        Introduce tu disponibilidad usando la hora de esta zona.
+                    {% elif portal_lang == "el" %}
+                        Καταχώρισε τη διαθεσιμότητά σου χρησιμοποιώντας την ώρα αυτής της ζώνης.
+                    {% else %}
+                        Enter your availability using the time in this timezone.
+                    {% endif %}
+                </small>
+            </div>
         </section>
 
         <section class="teacher-bookings-panel">
@@ -212,7 +245,8 @@
             <h2>Your Weekly Availability</h2>
             <p>
                 Tick each day you want to teach, then choose your starting
-                and finishing time.
+                and finishing time. These times use your selected timezone:
+                <strong>{{ teacher.timezone }}</strong>.
             </p>
 
             <div class="teacher-availability-list">

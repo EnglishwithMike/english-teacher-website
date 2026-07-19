@@ -13,7 +13,13 @@
     <h3>{{ t.select_time }}</h3>
 
     <p>
-{{ t.uk_time_note }}
+        {% if dynamic_teacher %}
+            The main time is shown in the teacher's timezone
+            ({{ teacher_info.timezone }}). Your converted local time is
+            displayed underneath.
+        {% else %}
+            {{ t.uk_time_note }}
+        {% endif %}
     </p>
 
     <div class="day-grid">
@@ -37,9 +43,17 @@
                 </button>
             {% else %}
                 <button type="button" onclick="selectTime(this)" data-time="{{ t }}">
-                    <span class="uk-time">{{ t }} UK</span>
+                    <span class="teacher-time">
+                        {{ t }}
+                        {% if dynamic_teacher %}
+                            {{ teacher_info.timezone }}
+                        {% else %}
+                            UK
+                        {% endif %}
+                    </span>
                     <br>
-                    <small class="local-time" data-uk-time="{{ t }}"></small>
+                    <small class="local-time"
+                           data-teacher-time="{{ t }}"></small>
                 </button>
             {% endif %}
         {% endfor %}
@@ -50,6 +64,12 @@
     <form class="booking-form" action="/book" method="POST" onsubmit="return trackBookingSubmit()">
         <input type="hidden" name="teacher" value="{{ teacher }}">
         <input type="hidden" name="lang" value="{{ lang }}">
+        <input type="hidden"
+               name="student_timezone"
+               id="studentTimezone">
+        <input type="hidden"
+               name="student_time_label"
+               id="studentTimeLabel">
         <input type="hidden" name="day" id="dayInput">
         <input type="hidden" name="time" id="timeInput">
 
@@ -88,7 +108,20 @@
 </div>
 
 <script>
-const dayNames = {
+const teacherTimezone = {% if dynamic_teacher %}
+    {{ teacher_info.timezone|tojson }}
+{% else %}
+    "Europe/London"
+{% endif %};
+
+const teacherDay = {{ day|tojson }};
+const studentTimezone =
+    Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+
+document.getElementById("studentTimezone").value = studentTimezone;
+
+const weekdayNumbers = {
+    "Sunday": 0,
     "Monday": 1,
     "Tuesday": 2,
     "Wednesday": 3,
@@ -97,60 +130,112 @@ const dayNames = {
     "Saturday": 6
 };
 
-function getNextDateForDay(dayName) {
-    const today = new Date();
-    const targetDay = dayNames[dayName];
-    const todayDay = today.getDay();
-
-    let daysUntil = targetDay - todayDay;
-
-    if (daysUntil < 0) {
-        daysUntil += 7;
-    }
-
-    const targetDate = new Date(today);
-    targetDate.setDate(today.getDate() + daysUntil);
-    return targetDate;
-}
-
-function convertUkTimeToLocal(ukTime) {
-    const dayName = "{{ day }}";
-    const lessonDate = getNextDateForDay(dayName);
-
-    const year = lessonDate.getFullYear();
-    const month = String(lessonDate.getMonth() + 1).padStart(2, "0");
-    const date = String(lessonDate.getDate()).padStart(2, "0");
-
-    const ukDateTimeString = `${year}-${month}-${date}T${ukTime}:00`;
-
-    const ukFormatter = new Intl.DateTimeFormat("en-GB", {
-        timeZone: "Europe/London",
-        timeZoneName: "shortOffset",
+function partsInTimezone(date, timezone) {
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+        timeZone: timezone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        weekday: "long",
         hour: "2-digit",
         minute: "2-digit",
-        hour12: false
+        second: "2-digit",
+        hourCycle: "h23"
     });
 
-    const parts = ukFormatter.formatToParts(new Date(ukDateTimeString));
-    const offsetPart = parts.find(part => part.type === "timeZoneName").value;
+    const result = {};
 
-    let offset = "+00:00";
+    formatter.formatToParts(date).forEach(part => {
+        if (part.type !== "literal") {
+            result[part.type] = part.value;
+        }
+    });
 
-    if (offsetPart.includes("+1")) {
-        offset = "+01:00";
+    return result;
+}
+
+function nextTeacherDate(dayName) {
+    const now = new Date();
+    const teacherNow = partsInTimezone(now, teacherTimezone);
+    const currentDay = weekdayNumbers[teacherNow.weekday];
+    const targetDay = weekdayNumbers[dayName];
+
+    let daysUntil = (targetDay - currentDay + 7) % 7;
+
+    const base = new Date(Date.UTC(
+        Number(teacherNow.year),
+        Number(teacherNow.month) - 1,
+        Number(teacherNow.day)
+    ));
+
+    base.setUTCDate(base.getUTCDate() + daysUntil);
+
+    return {
+        year: base.getUTCFullYear(),
+        month: base.getUTCMonth() + 1,
+        day: base.getUTCDate()
+    };
+}
+
+function teacherWallTimeToDate(dayName, timeText) {
+    const date = nextTeacherDate(dayName);
+    const [hour, minute] = timeText.split(":").map(Number);
+
+    let guess = Date.UTC(
+        date.year,
+        date.month - 1,
+        date.day,
+        hour,
+        minute,
+        0
+    );
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        const shown = partsInTimezone(new Date(guess), teacherTimezone);
+
+        const shownAsUtc = Date.UTC(
+            Number(shown.year),
+            Number(shown.month) - 1,
+            Number(shown.day),
+            Number(shown.hour),
+            Number(shown.minute),
+            Number(shown.second)
+        );
+
+        const wantedAsUtc = Date.UTC(
+            date.year,
+            date.month - 1,
+            date.day,
+            hour,
+            minute,
+            0
+        );
+
+        guess += wantedAsUtc - shownAsUtc;
     }
 
-    const ukDate = new Date(`${year}-${month}-${date}T${ukTime}:00${offset}`);
+    return new Date(guess);
+}
 
-    return ukDate.toLocaleTimeString([], {
+function studentTimeLabel(teacherTime) {
+    const lessonDate = teacherWallTimeToDate(
+        teacherDay,
+        teacherTime
+    );
+
+    return new Intl.DateTimeFormat([], {
+        timeZone: studentTimezone,
+        weekday: "long",
         hour: "2-digit",
-        minute: "2-digit"
-    });
+        minute: "2-digit",
+        timeZoneName: "short"
+    }).format(lessonDate);
 }
 
 document.querySelectorAll(".local-time").forEach(item => {
-    const ukTime = item.getAttribute("data-uk-time");
-    item.textContent = convertUkTimeToLocal(ukTime) + " {{ t.your_time }}";
+    const teacherTime = item.getAttribute("data-teacher-time");
+    item.textContent =
+        studentTimeLabel(teacherTime) + " {{ t.your_time }}";
 });
 
 function selectTime(button) {
@@ -165,7 +250,11 @@ function selectTime(button) {
     button.style.color = 'white';
 
     const selectedTime = button.getAttribute("data-time");
+    const convertedStudentTime = studentTimeLabel(selectedTime);
+
     document.getElementById("timeInput").value = selectedTime;
+    document.getElementById("studentTimeLabel").value =
+        convertedStudentTime;
 
     posthog.capture('time_selected', {
         teacher: '{{ teacher }}',
