@@ -55,6 +55,19 @@
                         per hour
                     {% endif %}
                 </p>
+
+                <a class="public-qualification-button"
+                   href="/booking/teacher/{{ teacher }}/qualification"
+                   target="_blank"
+                   rel="noopener">
+                    {% if lang == "es" %}
+                        Cualificación
+                    {% elif lang == "el" %}
+                        Προσόντα
+                    {% else %}
+                        Qualification
+                    {% endif %}
+                </a>
             {% else %}
                 <h2>{{ t.about }} {{ teacher_info.name }}</h2>
 

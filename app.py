@@ -256,6 +256,7 @@ def send_email(to_email, subject, message):
         resend.Emails.send({
             "from": f"LearningXY <{SENDER_EMAIL}>",
             "to": [to_email],
+            "reply_to": OWNER_EMAIL,
             "subject": subject,
             "text": message,
         })
@@ -431,6 +432,36 @@ def booking_approved_teacher(teacher_slug):
         lang=lang,
         t=TRANSLATIONS[lang]
     )
+
+
+@app.route("/booking/teacher/<teacher_slug>/qualification")
+def public_teacher_qualification(teacher_slug):
+    conn = sqlite3.connect("approved_teachers.db")
+    cursor = conn.cursor()
+
+    qualification = cursor.execute("""
+        SELECT application.proof_filename
+        FROM approved_teachers AS teacher
+        JOIN teacher_applications AS application
+          ON application.id = teacher.application_id
+        WHERE teacher.slug = ?
+          AND teacher.active = 1
+          AND application.status = 'approved'
+          AND application.deleted_at IS NULL
+    """, (teacher_slug,)).fetchone()
+
+    conn.close()
+
+    if not qualification or not qualification[0]:
+        return "Qualification not found.", 404
+
+    try:
+        return proof_preview_response(
+            os.path.basename(qualification[0])
+        )
+    except Exception as error:
+        print("PUBLIC QUALIFICATION ERROR:", repr(error))
+        return "The qualification could not be displayed.", 404
 
 
 @app.route("/booking/teacher/<teacher_slug>/<day>")
