@@ -22,3 +22,6 @@ app-for-supabase.txt
 
 add_customer_support_v1.py
 *.backup-before-customer-support
+
+fix_render_document_preview_v1.py
+*.backup-before-python-document-preview
