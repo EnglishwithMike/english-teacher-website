@@ -16,7 +16,8 @@ import uuid
 import time
 import subprocess
 from functools import wraps
-from zoneinfo import ZoneInfo, available_timezones
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 import stripe
 import resend
 from dotenv import load_dotenv
@@ -396,6 +397,55 @@ def get_dynamic_teacher_availability(teacher_id):
     return rows
 
 
+def convert_lesson_time(
+    day,
+    lesson_time,
+    teacher_timezone,
+    student_timezone
+):
+    weekdays = {
+        "Monday": 0,
+        "Tuesday": 1,
+        "Wednesday": 2,
+        "Thursday": 3,
+        "Friday": 4,
+        "Saturday": 5,
+        "Sunday": 6,
+    }
+
+    if day not in weekdays:
+        raise ValueError("Invalid lesson day")
+
+    teacher_zone = ZoneInfo(teacher_timezone)
+    student_zone = ZoneInfo(student_timezone)
+    teacher_now = datetime.now(teacher_zone)
+
+    days_until = (
+        weekdays[day] - teacher_now.weekday()
+    ) % 7
+
+    lesson_date = (
+        teacher_now + timedelta(days=days_until)
+    ).date()
+
+    hour, minute = map(int, lesson_time.split(":"))
+
+    teacher_datetime = datetime(
+        lesson_date.year,
+        lesson_date.month,
+        lesson_date.day,
+        hour,
+        minute,
+        tzinfo=teacher_zone
+    )
+
+    student_datetime = teacher_datetime.astimezone(student_zone)
+
+    return student_datetime.strftime(
+        "%A, %d %B at %H:%M %Z"
+    )
+
+
 def generate_lesson_times(start_time, end_time):
     start_hour, start_minute = map(int, start_time.split(":"))
     end_hour, end_minute = map(int, end_time.split(":"))
@@ -595,6 +645,9 @@ def book():
     name = request.form.get("name", "").strip()
     email = request.form.get("email", "").strip()
     phone = request.form.get("phone", "").strip()
+    student_timezone = request.form.get(
+        "student_timezone", "UTC"
+    ).strip() or "UTC"
     lang = request.form.get("lang", "en")
 
     if lang not in TRANSLATIONS:
@@ -692,6 +745,16 @@ def book():
         return "This slot is already booked.", 409
 
     if teacher in ["mike", "michalis"] and not previous_free_lesson:
+        try:
+            student_local_time = convert_lesson_time(
+                day,
+                lesson_time,
+                "Europe/London",
+                student_timezone
+            )
+        except (ValueError, ZoneInfoNotFoundError):
+            return "Please select a valid timezone.", 400
+
         conn = sqlite3.connect("bookings.db")
         cursor = conn.cursor()
 
@@ -727,8 +790,9 @@ Teacher: {teacher_name} {teacher_flag}
 Student: {name}
 Student email: {email}
 Student phone: {phone}
-Day: {day}
-Time: {lesson_time}
+Teacher time: {day}, {lesson_time} UK time
+Student local time: {student_local_time}
+Student timezone: {student_timezone}
 """
         )
 
@@ -739,8 +803,9 @@ Time: {lesson_time}
 
 Your free first lesson with {teacher_name} has been booked.
 
-Day: {day}
-Time: {lesson_time} UK time
+Your local lesson time: {student_local_time}
+Your timezone: {student_timezone}
+UK reference time: {day}, {lesson_time} UK time
 
 See you then!
 """
