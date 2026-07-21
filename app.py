@@ -600,8 +600,47 @@ def book():
     if lang not in TRANSLATIONS:
         lang = "en"
 
+    if not day:
+        return "Please choose a lesson day.", 400
+
     if not lesson_time:
         return "Please choose a lesson time.", 400
+
+    if not dynamic_teacher:
+        static_days = {
+            "mike": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+            "michalis": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+            "emily": [
+                "Monday", "Tuesday", "Wednesday",
+                "Thursday", "Friday", "Saturday"
+            ],
+        }
+
+        if day not in static_days.get(teacher, []):
+            return "That lesson day is not available.", 400
+
+        if teacher == "emily":
+            emily_times = {
+                "Wednesday": [
+                    "10:00", "11:00", "12:00",
+                    "13:00", "14:00", "15:00"
+                ],
+                "Thursday": [
+                    "10:00", "11:00", "12:00", "13:00", "14:00"
+                ],
+            }
+            valid_times = emily_times.get(
+                day,
+                ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00"]
+            )
+        else:
+            valid_times = [
+                "10:00", "11:00", "12:00", "13:00",
+                "14:00", "15:00", "16:00"
+            ]
+
+        if lesson_time not in valid_times:
+            return "That lesson time is not available.", 400
 
     if dynamic_teacher:
         availability = get_dynamic_teacher_availability(
