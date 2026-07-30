@@ -28,6 +28,7 @@ OWNER_EMAIL = os.getenv("OWNER_EMAIL")
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
 RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "onboarding@resend.dev")
+ZOOM_MEETING_URL = os.getenv("ZOOM_MEETING_URL", "").strip()
 
 stripe.api_key = STRIPE_SECRET_KEY
 resend.api_key = RESEND_API_KEY
@@ -104,7 +105,7 @@ TRANSLATIONS = {
         "booked_for": "You are booked for:",
         "day": "Day",
         "time": "Time",
-        "contact_text": "If you need anything beforehand or have any questions, feel free to contact me:",
+        "contact_text": "The Zoom invitation was also sent to your email. Please also check your spam/junk folders. If you need anything beforehand or have any questions, feel free to contact me:",
         "return_home": "Return to Homepage",
         "mike_bio_1": "Graduate teacher with experience specialising in teaching English.",
         "mike_bio_2": "During my studies I volunteered in numerous schools, gaining valuable classroom experience with learners of different ages.",
@@ -793,6 +794,7 @@ Student phone: {phone}
 Teacher time: {day}, {lesson_time} UK time
 Student local time: {student_local_time}
 Student timezone: {student_timezone}
+Zoom meeting: {ZOOM_MEETING_URL}
 """
         )
 
@@ -806,6 +808,7 @@ Your free first lesson with {teacher_name} has been booked.
 Your local lesson time: {student_local_time}
 Your timezone: {student_timezone}
 UK reference time: {day}, {lesson_time} UK time
+Zoom meeting: {ZOOM_MEETING_URL}
 
 See you then!
 """
@@ -817,6 +820,7 @@ See you then!
             time=lesson_time,
             teacher=teacher,
             teacher_info=teacher_info,
+            zoom_meeting_url=(ZOOM_MEETING_URL if teacher in ("mike", "michalis") else ""),
             lang=lang,
             t=TRANSLATIONS[lang]
         )
@@ -921,6 +925,11 @@ def success():
     phone = metadata.get("phone", "")
     paid_amount_pence = checkout_session.amount_total or 0
     paid_amount = paid_amount_pence / 100
+    zoom_email_line = (
+        f"Zoom meeting: {ZOOM_MEETING_URL}\n"
+        if teacher in ("mike", "michalis") and ZOOM_MEETING_URL
+        else ""
+    )
 
     conn = sqlite3.connect("bookings.db")
     cursor = conn.cursor()
@@ -980,7 +989,7 @@ Student phone: {phone}
 Day: {day}
 Time: {lesson_time}
 Payment: £{paid_amount:.2f}
-"""
+{zoom_email_line}"""
     )
 
     student_email_ok = send_email(
@@ -993,7 +1002,7 @@ Your lesson with {teacher_name} has been booked successfully.
 Day: {day}
 Time: {lesson_time} UK time
 Payment: £{paid_amount:.2f}
-
+{zoom_email_line}
 If you have any questions, contact: {OWNER_EMAIL}
 
 See you then!
@@ -1035,6 +1044,7 @@ You can also see this booking in your teacher dashboard.
         time=lesson_time,
         teacher=teacher,
         teacher_info=teacher_info,
+            zoom_meeting_url=(ZOOM_MEETING_URL if teacher in ("mike", "michalis") else ""),
         lang=lang,
         t=TRANSLATIONS[lang]
     )
@@ -2910,6 +2920,7 @@ LearningXY Customer Support
 
 
 @app.route("/success-preview")
+@admin_required
 def success_preview():
     return render_template(
         "success.html",
@@ -2917,6 +2928,7 @@ def success_preview():
         time="10:00",
         teacher="mike",
         teacher_info=TEACHERS["mike"],
+        zoom_meeting_url=ZOOM_MEETING_URL,
         lang="en",
         t=TRANSLATIONS["en"]
     )

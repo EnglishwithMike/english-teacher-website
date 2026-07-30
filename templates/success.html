@@ -18,6 +18,17 @@
     <p><strong>{{ t.day }}:</strong> {{ day }}</p>
     <p><strong>{{ t.time }}:</strong> {{ time }}</p>
 
+    {% if zoom_meeting_url %}
+        <p>
+            <strong>Zoom:</strong>
+            <a href="{{ zoom_meeting_url }}"
+               target="_blank"
+               rel="noopener noreferrer">
+                Join Zoom Meeting
+            </a>
+        </p>
+    {% endif %}
+
     <hr>
 
     <p>{{ t.contact_text }}</p>
