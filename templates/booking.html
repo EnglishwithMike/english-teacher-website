@@ -161,21 +161,14 @@
             {% endif %}
 
             <p>
-                {% set static_days =
-                    ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] %}
-
-                {% if teacher == "emily" %}
-                    {% set static_days = static_days + ["Saturday"] %}
-                {% endif %}
-
-                {% for day in static_days %}
+                {% for lesson_day in upcoming_dates %}
                     {% if teacher == "mike" %}
-                        <a href="/booking/{{ day }}?lang={{ lang }}">
-                            {{ day }}
+                        <a href="/booking/{{ lesson_day.day }}?date={{ lesson_day.date }}&lang={{ lang }}">
+                            {{ lesson_day.label }}
                         </a>
                     {% else %}
-                        <a href="/booking/{{ teacher }}/{{ day }}?lang={{ lang }}">
-                            {{ day }}
+                        <a href="/booking/{{ teacher }}/{{ lesson_day.day }}?date={{ lesson_day.date }}&lang={{ lang }}">
+                            {{ lesson_day.label }}
                         </a>
                     {% endif %}
                 {% endfor %}

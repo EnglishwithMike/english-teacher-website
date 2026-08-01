@@ -413,7 +413,8 @@ def convert_lesson_time(
     day,
     lesson_time,
     teacher_timezone,
-    student_timezone
+    student_timezone,
+    exact_lesson_date=None
 ):
     weekdays = {
         "Monday": 0,
@@ -432,13 +433,21 @@ def convert_lesson_time(
     student_zone = ZoneInfo(student_timezone)
     teacher_now = datetime.now(teacher_zone)
 
-    days_until = (
-        weekdays[day] - teacher_now.weekday()
-    ) % 7
+    if exact_lesson_date:
+        lesson_date = datetime.strptime(
+            exact_lesson_date, "%Y-%m-%d"
+        ).date()
 
-    lesson_date = (
-        teacher_now + timedelta(days=days_until)
-    ).date()
+        if lesson_date.strftime("%A") != day:
+            raise ValueError("Lesson date does not match lesson day")
+    else:
+        days_until = (
+            weekdays[day] - teacher_now.weekday()
+        ) % 7
+
+        lesson_date = (
+            teacher_now + timedelta(days=days_until)
+        ).date()
 
     hour, minute = map(int, lesson_time.split(":"))
 
@@ -576,22 +585,70 @@ def booking_day_approved_teacher(teacher_slug, day):
     )
 
 
+def get_upcoming_static_dates(teacher, number_of_days=35):
+    london_today = datetime.now(
+        ZoneInfo("Europe/London")
+    ).date()
+
+    allowed_weekdays = {0, 1, 2, 3, 4}
+
+    if teacher == "emily":
+        allowed_weekdays.add(5)
+
+    upcoming_dates = []
+
+    for offset in range(number_of_days):
+        lesson_date = london_today + timedelta(days=offset)
+
+        if lesson_date.weekday() not in allowed_weekdays:
+            continue
+
+        upcoming_dates.append({
+            "day": lesson_date.strftime("%A"),
+            "date": lesson_date.isoformat(),
+            "label": lesson_date.strftime("%A %d %B"),
+        })
+
+    return upcoming_dates
+
+
 @app.route("/booking")
 def booking():
     lang = get_lang()
-    return render_template("booking.html", teacher="mike", teacher_info=TEACHERS["mike"], lang=lang, t=TRANSLATIONS[lang])
+    return render_template(
+        "booking.html",
+        teacher="mike",
+        teacher_info=TEACHERS["mike"],
+        upcoming_dates=get_upcoming_static_dates("mike"),
+        lang=lang,
+        t=TRANSLATIONS[lang],
+    )
 
 
 @app.route("/booking/emily")
 def booking_emily():
     lang = get_lang()
-    return render_template("booking.html", teacher="emily", teacher_info=TEACHERS["emily"], lang=lang, t=TRANSLATIONS[lang])
+    return render_template(
+        "booking.html",
+        teacher="emily",
+        teacher_info=TEACHERS["emily"],
+        upcoming_dates=get_upcoming_static_dates("emily"),
+        lang=lang,
+        t=TRANSLATIONS[lang],
+    )
 
 
 @app.route("/booking/michalis")
 def booking_michalis():
     lang = get_lang()
-    return render_template("booking.html", teacher="michalis", teacher_info=TEACHERS["michalis"], lang=lang, t=TRANSLATIONS[lang])
+    return render_template(
+        "booking.html",
+        teacher="michalis",
+        teacher_info=TEACHERS["michalis"],
+        upcoming_dates=get_upcoming_static_dates("michalis"),
+        lang=lang,
+        t=TRANSLATIONS[lang],
+    )
 
 
 @app.route("/booking/<day>")
@@ -611,26 +668,66 @@ def booking_day_michalis(day):
 
 def show_booking_day(teacher, day):
     lang = get_lang()
+    lesson_date = request.args.get("date", "").strip()
 
-    # TEMPORARY: this Wednesday is fully booked
-    if day == "Wednesday":
-        booked_times = ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00"]
+    try:
+        selected_date = datetime.strptime(
+            lesson_date, "%Y-%m-%d"
+        ).date()
+    except ValueError:
+        return "Please select a valid lesson date.", 400
+
+    london_today = datetime.now(
+        ZoneInfo("Europe/London")
+    ).date()
+
+    allowed_weekdays = {0, 1, 2, 3, 4}
+
+    if teacher == "emily":
+        allowed_weekdays.add(5)
+
+    if (
+        selected_date < london_today
+        or selected_date > london_today + timedelta(days=34)
+        or selected_date.weekday() not in allowed_weekdays
+        or selected_date.strftime("%A") != day
+    ):
+        return "That lesson date is not available.", 400
+
+    conn = sqlite3.connect("bookings.db")
+    cursor = conn.cursor()
+
+    if teacher in ["mike", "michalis"]:
+        booking_rows = cursor.execute("""
+            SELECT time FROM bookings
+            WHERE teacher IN ('mike', 'michalis')
+              AND lesson_date = ?
+        """, (lesson_date,)).fetchall()
+
+        blocked_rows = cursor.execute("""
+            SELECT time FROM blocked_slots
+            WHERE lesson_date = ?
+        """, (lesson_date,)).fetchall()
+
+        booked_times = sorted({
+            row[0] for row in booking_rows + blocked_rows
+        })
     else:
-        conn = sqlite3.connect("bookings.db")
-        c = conn.cursor()
+        booking_rows = cursor.execute("""
+            SELECT time FROM bookings
+            WHERE teacher = ? AND lesson_date = ?
+        """, (teacher, lesson_date)).fetchall()
 
-        # Mike and Michalis are the same person, so their bookings share availability
-        if teacher in ["mike", "michalis"]:
-            c.execute("SELECT time FROM bookings WHERE teacher IN ('mike', 'michalis') AND day=?", (day,))
-        else:
-            c.execute("SELECT time FROM bookings WHERE teacher=? AND day=?", (teacher, day))
+        booked_times = sorted({
+            row[0] for row in booking_rows
+        })
 
-        booked_times = [row[0] for row in c.fetchall()]
-        conn.close()
+    conn.close()
 
     return render_template(
         "booking_day.html",
         day=day,
+        lesson_date=lesson_date,
         booked=booked_times,
         teacher=teacher,
         teacher_info=TEACHERS[teacher],
@@ -653,6 +750,7 @@ def book():
         return "Teacher not found.", 404
 
     day = request.form.get("day", "")
+    lesson_date = request.form.get("lesson_date", "").strip()
     lesson_time = request.form.get("time", "")
     name = request.form.get("name", "").strip()
     email = request.form.get("email", "").strip()
@@ -670,6 +768,25 @@ def book():
 
     if not lesson_time:
         return "Please choose a lesson time.", 400
+
+    if not dynamic_teacher:
+        try:
+            selected_date = datetime.strptime(
+                lesson_date, "%Y-%m-%d"
+            ).date()
+        except ValueError:
+            return "Please choose a valid lesson date.", 400
+
+        london_today = datetime.now(
+            ZoneInfo("Europe/London")
+        ).date()
+
+        if (
+            selected_date < london_today
+            or selected_date > london_today + timedelta(days=34)
+            or selected_date.strftime("%A") != day
+        ):
+            return "That lesson date is not available.", 400
 
     if not dynamic_teacher:
         static_days = {
@@ -730,20 +847,33 @@ def book():
 
     conn = sqlite3.connect("bookings.db")
     cursor = conn.cursor()
+    blocked_slot = None
 
     if teacher in ["mike", "michalis"]:
         cursor.execute("""
             SELECT id FROM bookings
             WHERE teacher IN ('mike', 'michalis')
-            AND day = ? AND time = ?
-        """, (day, lesson_time))
-    else:
+              AND lesson_date = ? AND time = ?
+        """, (lesson_date, lesson_time))
+        slot_exists = cursor.fetchone()
+
+        cursor.execute("""
+            SELECT id FROM blocked_slots
+            WHERE lesson_date = ? AND time = ?
+        """, (lesson_date, lesson_time))
+        blocked_slot = cursor.fetchone()
+    elif dynamic_teacher:
         cursor.execute("""
             SELECT id FROM bookings
             WHERE teacher = ? AND day = ? AND time = ?
         """, (teacher, day, lesson_time))
-
-    slot_exists = cursor.fetchone()
+        slot_exists = cursor.fetchone()
+    else:
+        cursor.execute("""
+            SELECT id FROM bookings
+            WHERE teacher = ? AND lesson_date = ? AND time = ?
+        """, (teacher, lesson_date, lesson_time))
+        slot_exists = cursor.fetchone()
 
     cursor.execute("""
         SELECT email FROM free_lessons
@@ -753,7 +883,7 @@ def book():
 
     conn.close()
 
-    if slot_exists:
+    if slot_exists or blocked_slot:
         return "This slot is already booked.", 409
 
     if teacher in ["mike", "michalis"] and not previous_free_lesson:
@@ -762,7 +892,8 @@ def book():
                 day,
                 lesson_time,
                 "Europe/London",
-                student_timezone
+                student_timezone,
+                lesson_date
             )
         except (ValueError, ZoneInfoNotFoundError):
             return "Please select a valid timezone.", 400
@@ -773,13 +904,13 @@ def book():
         cursor.execute("""
             INSERT INTO bookings
             (
-                teacher, day, time, name, email, phone,
+                teacher, day, lesson_date, time, name, email, phone,
                 checkout_session_id, email_sent
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            teacher, day, lesson_time, name, email, phone,
-            "FREE_FIRST_LESSON", 0
+            teacher, day, lesson_date, lesson_time,
+            name, email, phone, "FREE_FIRST_LESSON", 0
         ))
 
         cursor.execute("""
@@ -802,7 +933,7 @@ Teacher: {teacher_name} {teacher_flag}
 Student: {name}
 Student email: {email}
 Student phone: {phone}
-Teacher time: {day}, {lesson_time} UK time
+Teacher time: {day} {lesson_date}, {lesson_time} UK time
 Student local time: {student_local_time}
 Student timezone: {student_timezone}
 Zoom meeting: {ZOOM_MEETING_URL}
@@ -818,7 +949,7 @@ Your free first lesson with {teacher_name} has been booked.
 
 Your local lesson time: {student_local_time}
 Your timezone: {student_timezone}
-UK reference time: {day}, {lesson_time} UK time
+UK reference time: {day} {lesson_date}, {lesson_time} UK time
 Zoom meeting: {ZOOM_MEETING_URL}
 
 See you then!
@@ -828,6 +959,7 @@ See you then!
         return render_template(
             "success.html",
             day=day,
+            lesson_date=lesson_date,
             time=lesson_time,
             teacher=teacher,
             teacher_info=teacher_info,
@@ -876,6 +1008,7 @@ See you then!
         metadata={
             "teacher": teacher,
             "day": day,
+            "lesson_date": lesson_date,
             "time": lesson_time,
             "name": name,
             "email": email,
@@ -930,6 +1063,7 @@ def success():
     teacher_flag = teacher_info["flag"]
 
     day = metadata["day"]
+    lesson_date = metadata.get("lesson_date", "")
     lesson_time = metadata["time"]
     name = metadata["name"]
     email = metadata["email"]
@@ -951,21 +1085,35 @@ def success():
     """, (session_id,))
     already_saved = cursor.fetchone()
 
+    blocked_slot = None
+
     if teacher in ["mike", "michalis"]:
         cursor.execute("""
             SELECT id FROM bookings
             WHERE teacher IN ('mike', 'michalis')
-            AND day = ? AND time = ?
-        """, (day, lesson_time))
-    else:
+              AND lesson_date = ? AND time = ?
+        """, (lesson_date, lesson_time))
+        slot_taken = cursor.fetchone()
+
+        cursor.execute("""
+            SELECT id FROM blocked_slots
+            WHERE lesson_date = ? AND time = ?
+        """, (lesson_date, lesson_time))
+        blocked_slot = cursor.fetchone()
+    elif dynamic_teacher:
         cursor.execute("""
             SELECT id FROM bookings
             WHERE teacher = ? AND day = ? AND time = ?
         """, (teacher, day, lesson_time))
+        slot_taken = cursor.fetchone()
+    else:
+        cursor.execute("""
+            SELECT id FROM bookings
+            WHERE teacher = ? AND lesson_date = ? AND time = ?
+        """, (teacher, lesson_date, lesson_time))
+        slot_taken = cursor.fetchone()
 
-    slot_taken = cursor.fetchone()
-
-    if slot_taken and not already_saved:
+    if (slot_taken or blocked_slot) and not already_saved:
         conn.close()
         return (
             "Sorry, this lesson slot was booked by another student "
@@ -976,13 +1124,13 @@ def success():
         cursor.execute("""
             INSERT INTO bookings
             (
-                teacher, day, time, name, email, phone,
+                teacher, day, lesson_date, time, name, email, phone,
                 checkout_session_id, email_sent
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            teacher, day, lesson_time, name, email, phone,
-            session_id, 0
+            teacher, day, lesson_date, lesson_time,
+            name, email, phone, session_id, 0
         ))
         conn.commit()
 
@@ -1052,6 +1200,7 @@ You can also see this booking in your teacher dashboard.
     return render_template(
         "success.html",
         day=day,
+        lesson_date=lesson_date,
         time=lesson_time,
         teacher=teacher,
         teacher_info=teacher_info,
@@ -3040,6 +3189,7 @@ def success_preview():
     return render_template(
         "success.html",
         day="Monday",
+        lesson_date="Preview date",
         time="10:00",
         teacher="mike",
         teacher_info=TEACHERS["mike"],

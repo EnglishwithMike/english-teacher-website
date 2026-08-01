@@ -16,6 +16,9 @@
     <p>{{ t.booked_for }}</p>
 
     <p><strong>{{ t.day }}:</strong> {{ day }}</p>
+    {% if lesson_date %}
+        <p><strong>Date:</strong> {{ lesson_date }}</p>
+    {% endif %}
     <p><strong>{{ t.time }}:</strong> {{ time }}</p>
 
     {% if zoom_meeting_url %}
@@ -47,6 +50,7 @@
     posthog.capture('booking_completed', {
         teacher: '{{ teacher }}',
         day: '{{ day }}',
+        lesson_date: '{{ lesson_date or "" }}',
         time: '{{ time }}',
         lang: '{{ lang }}'
     });

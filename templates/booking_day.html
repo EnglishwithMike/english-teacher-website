@@ -8,7 +8,12 @@
 <body>
 
 <div class="booking-day-panel">
-    <h1>{{ day.title() }}</h1>
+    <h1>
+        {{ day.title() }}
+        {% if lesson_date %}
+            {{ lesson_date }}
+        {% endif %}
+    </h1>
 
     <h3>{{ t.select_time }}</h3>
 
@@ -71,6 +76,8 @@
                name="student_time_label"
                id="studentTimeLabel">
         <input type="hidden" name="day" id="dayInput">
+        <input type="hidden" name="lesson_date"
+               value="{{ lesson_date or '' }}">
         <input type="hidden" name="time" id="timeInput">
 
         <label>{{ t.your_name }}</label><br>
@@ -115,6 +122,7 @@ const teacherTimezone = {% if dynamic_teacher %}
 {% endif %};
 
 const teacherDay = {{ day|tojson }};
+const lessonDate = {{ (lesson_date or "")|tojson }};
 const studentTimezone =
     Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
@@ -155,6 +163,16 @@ function partsInTimezone(date, timezone) {
 }
 
 function nextTeacherDate(dayName) {
+    if (lessonDate) {
+        const [year, month, day] = lessonDate.split("-").map(Number);
+
+        return {
+            year: year,
+            month: month,
+            day: day
+        };
+    }
+
     const now = new Date();
     const teacherNow = partsInTimezone(now, teacherTimezone);
     const currentDay = weekdayNumbers[teacherNow.weekday];
