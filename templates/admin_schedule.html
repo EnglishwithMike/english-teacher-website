@@ -12,8 +12,9 @@
         <h1>Mike & Michalis Schedule</h1>
 
         <p>
-            Mike and Michalis share this schedule. Select an exact date
-            and time when they cannot work. All other slots remain available.
+            Mike and Michalis share this schedule. Select one date or a date range when they cannot work.
+            You can block one time or the whole day. All other slots
+            remain available.
         </p>
 
         {% if result == "blocked" %}
@@ -30,20 +31,67 @@
               style="display:grid; gap:14px; margin:25px 0;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-            <label for="lesson_date"><strong>Date</strong></label>
+            <label for="lesson_date">
+                <strong>Start date</strong>
+            </label>
             <input id="lesson_date" name="lesson_date" type="date"
                    min="{{ minimum_date }}" required>
+
+            <label for="end_date">
+                <strong>End date</strong>
+            </label>
+            <input id="end_date" name="end_date" type="date"
+                   min="{{ minimum_date }}">
+
+            <small>
+                Leave the end date empty to block only one date.
+            </small>
+
+            <label style="display:flex; align-items:center; gap:10px;">
+                <input id="whole_day" name="whole_day"
+                       type="checkbox" value="1"
+                       onchange="updateTimeControl()">
+                <strong>Block the whole day (10:00–17:00)</strong>
+            </label>
 
             <label for="time"><strong>UK time</strong></label>
             <select id="time" name="time" required>
                 {% for lesson_time in
                     ["10:00","11:00","12:00","13:00","14:00","15:00","16:00"] %}
-                    <option value="{{ lesson_time }}">{{ lesson_time }}</option>
+                    <option value="{{ lesson_time }}">
+                        {{ lesson_time }}
+                    </option>
                 {% endfor %}
             </select>
 
             <button type="submit">Mark as Booked</button>
         </form>
+
+        <script>
+            function updateTimeControl() {
+                const wholeDay =
+                    document.getElementById("whole_day").checked;
+                const timeSelect =
+                    document.getElementById("time");
+
+                timeSelect.disabled = wholeDay;
+                timeSelect.required = !wholeDay;
+            }
+
+            document.getElementById("lesson_date").addEventListener(
+                "change",
+                function () {
+                    const endDate =
+                        document.getElementById("end_date");
+
+                    endDate.min = this.value || "{{ minimum_date }}";
+
+                    if (endDate.value && endDate.value < this.value) {
+                        endDate.value = this.value;
+                    }
+                }
+            );
+        </script>
 
         <h2>Blocked dates and times</h2>
 

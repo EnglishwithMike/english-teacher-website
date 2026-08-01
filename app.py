@@ -1974,16 +1974,28 @@ def admin_schedule_block():
     if not saved_token or submitted_token != saved_token:
         return "Invalid security token.", 403
 
-    lesson_date = request.form.get("lesson_date", "").strip()
+    start_date_text = request.form.get(
+        "lesson_date", ""
+    ).strip()
+    end_date_text = request.form.get(
+        "end_date", ""
+    ).strip() or start_date_text
     lesson_time = request.form.get("time", "").strip()
-    valid_times = {
+    block_whole_day = (
+        request.form.get("whole_day", "") == "1"
+    )
+
+    valid_times = [
         "10:00", "11:00", "12:00", "13:00",
         "14:00", "15:00", "16:00"
-    }
+    ]
 
     try:
-        selected_date = datetime.strptime(
-            lesson_date, "%Y-%m-%d"
+        start_date = datetime.strptime(
+            start_date_text, "%Y-%m-%d"
+        ).date()
+        end_date = datetime.strptime(
+            end_date_text, "%Y-%m-%d"
         ).date()
     except ValueError:
         return redirect("/admin/schedule?result=invalid")
@@ -1993,28 +2005,47 @@ def admin_schedule_block():
     ).date()
 
     if (
-        selected_date < london_today
-        or selected_date.weekday() > 4
-        or lesson_time not in valid_times
+        start_date < london_today
+        or end_date < start_date
+        or end_date > start_date + timedelta(days=365)
+        or (not block_whole_day and lesson_time not in valid_times)
     ):
         return redirect("/admin/schedule?result=invalid")
+
+    dates_to_block = []
+    current_date = start_date
+
+    while current_date <= end_date:
+        if current_date.weekday() <= 4:
+            dates_to_block.append(current_date.isoformat())
+        current_date += timedelta(days=1)
+
+    if not dates_to_block:
+        return redirect("/admin/schedule?result=invalid")
+
+    times_to_block = (
+        valid_times if block_whole_day else [lesson_time]
+    )
 
     conn = sqlite3.connect("bookings.db")
     cursor = conn.cursor()
 
-    existing = cursor.execute("""
-        SELECT id FROM blocked_slots
-        WHERE lesson_date = ? AND time = ?
-    """, (lesson_date, lesson_time)).fetchone()
+    for blocked_date in dates_to_block:
+        for blocked_time in times_to_block:
+            existing = cursor.execute("""
+                SELECT id FROM blocked_slots
+                WHERE lesson_date = ? AND time = ?
+            """, (blocked_date, blocked_time)).fetchone()
 
-    if not existing:
-        cursor.execute("""
-            INSERT INTO blocked_slots (lesson_date, time)
-            VALUES (?, ?)
-        """, (lesson_date, lesson_time))
-        conn.commit()
+            if not existing:
+                cursor.execute("""
+                    INSERT INTO blocked_slots (lesson_date, time)
+                    VALUES (?, ?)
+                """, (blocked_date, blocked_time))
 
+    conn.commit()
     conn.close()
+
     return redirect("/admin/schedule?result=blocked")
 
 
