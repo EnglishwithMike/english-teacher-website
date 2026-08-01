@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Mike & Michalis Schedule | LearningXY</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+</head>
+<body>
+<main class="admin-dashboard-page">
+    <section class="admin-pages-panel" style="max-width:760px; margin:30px auto;">
+        <h1>Mike & Michalis Schedule</h1>
+
+        <p>
+            Mike and Michalis share this schedule. Select an exact date
+            and time when they cannot work. All other slots remain available.
+        </p>
+
+        {% if result == "blocked" %}
+            <p style="color:#087a36;"><strong>The slot now shows as booked.</strong></p>
+        {% elif result == "removed" %}
+            <p style="color:#087a36;"><strong>The slot is available again.</strong></p>
+        {% elif result == "invalid" %}
+            <p style="color:#b00020;">
+                <strong>Please choose a valid Monday–Friday date and time.</strong>
+            </p>
+        {% endif %}
+
+        <form method="POST" action="/admin/schedule/block"
+              style="display:grid; gap:14px; margin:25px 0;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <label for="lesson_date"><strong>Date</strong></label>
+            <input id="lesson_date" name="lesson_date" type="date"
+                   min="{{ minimum_date }}" required>
+
+            <label for="time"><strong>UK time</strong></label>
+            <select id="time" name="time" required>
+                {% for lesson_time in
+                    ["10:00","11:00","12:00","13:00","14:00","15:00","16:00"] %}
+                    <option value="{{ lesson_time }}">{{ lesson_time }}</option>
+                {% endfor %}
+            </select>
+
+            <button type="submit">Mark as Booked</button>
+        </form>
+
+        <h2>Blocked dates and times</h2>
+
+        {% if blocked_slots %}
+            <div style="display:grid; gap:10px;">
+                {% for slot in blocked_slots %}
+                    <div style="display:flex; justify-content:space-between;
+                                align-items:center; gap:15px; padding:12px;
+                                border:1px solid #ccd3e0; border-radius:10px;">
+                        <span>
+                            <strong>{{ slot.lesson_date }}</strong>
+                            at {{ slot.time }} UK time
+                        </span>
+
+                        <form method="POST"
+                              action="/admin/schedule/{{ slot.id }}/remove">
+                            <input type="hidden" name="csrf_token"
+                                   value="{{ csrf_token }}">
+                            <button type="submit">Make Available</button>
+                        </form>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p>No dates are currently blocked.</p>
+        {% endif %}
+
+        <p style="margin-top:25px;">
+            <a href="/admin">← Back to Admin Dashboard</a>
+        </p>
+    </section>
+</main>
+</body>
+</html>

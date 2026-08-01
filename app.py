@@ -234,7 +234,8 @@ def init_db():
     for column in [
         "checkout_session_id TEXT",
         "email_sent INTEGER DEFAULT 0",
-        "teacher TEXT DEFAULT 'mike'"
+        "teacher TEXT DEFAULT 'mike'",
+        "lesson_date TEXT"
     ]:
         try:
             c.execute(f"ALTER TABLE bookings ADD COLUMN {column}")
@@ -244,6 +245,16 @@ def init_db():
     c.execute("""
         CREATE TABLE IF NOT EXISTS free_lessons (
             email TEXT PRIMARY KEY
+        )
+    """)
+
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS blocked_slots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lesson_date TEXT NOT NULL,
+            time TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (lesson_date, time)
         )
     """)
 
@@ -1773,6 +1784,110 @@ def admin_dashboard():
         csrf_token=session["admin_csrf_token"],
         current_timestamp=int(time.time())
     )
+
+
+@app.route("/admin/schedule")
+@admin_required
+def admin_schedule():
+    if "admin_csrf_token" not in session:
+        session["admin_csrf_token"] = uuid.uuid4().hex
+
+    conn = sqlite3.connect("bookings.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    blocked_slots = cursor.execute("""
+        SELECT id, lesson_date, time, created_at
+        FROM blocked_slots
+        WHERE lesson_date >= ?
+        ORDER BY lesson_date, time
+    """, (
+        datetime.now(ZoneInfo("Europe/London")).date().isoformat(),
+    )).fetchall()
+    conn.close()
+
+    return render_template(
+        "admin_schedule.html",
+        blocked_slots=blocked_slots,
+        csrf_token=session["admin_csrf_token"],
+        result=request.args.get("result"),
+        minimum_date=datetime.now(
+            ZoneInfo("Europe/London")
+        ).date().isoformat(),
+    )
+
+
+@app.route("/admin/schedule/block", methods=["POST"])
+@admin_required
+def admin_schedule_block():
+    submitted_token = request.form.get("csrf_token", "")
+    saved_token = session.get("admin_csrf_token", "")
+
+    if not saved_token or submitted_token != saved_token:
+        return "Invalid security token.", 403
+
+    lesson_date = request.form.get("lesson_date", "").strip()
+    lesson_time = request.form.get("time", "").strip()
+    valid_times = {
+        "10:00", "11:00", "12:00", "13:00",
+        "14:00", "15:00", "16:00"
+    }
+
+    try:
+        selected_date = datetime.strptime(
+            lesson_date, "%Y-%m-%d"
+        ).date()
+    except ValueError:
+        return redirect("/admin/schedule?result=invalid")
+
+    london_today = datetime.now(
+        ZoneInfo("Europe/London")
+    ).date()
+
+    if (
+        selected_date < london_today
+        or selected_date.weekday() > 4
+        or lesson_time not in valid_times
+    ):
+        return redirect("/admin/schedule?result=invalid")
+
+    conn = sqlite3.connect("bookings.db")
+    cursor = conn.cursor()
+
+    existing = cursor.execute("""
+        SELECT id FROM blocked_slots
+        WHERE lesson_date = ? AND time = ?
+    """, (lesson_date, lesson_time)).fetchone()
+
+    if not existing:
+        cursor.execute("""
+            INSERT INTO blocked_slots (lesson_date, time)
+            VALUES (?, ?)
+        """, (lesson_date, lesson_time))
+        conn.commit()
+
+    conn.close()
+    return redirect("/admin/schedule?result=blocked")
+
+
+@app.route("/admin/schedule/<int:slot_id>/remove", methods=["POST"])
+@admin_required
+def admin_schedule_remove(slot_id):
+    submitted_token = request.form.get("csrf_token", "")
+    saved_token = session.get("admin_csrf_token", "")
+
+    if not saved_token or submitted_token != saved_token:
+        return "Invalid security token.", 403
+
+    conn = sqlite3.connect("bookings.db")
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM blocked_slots WHERE id = ?",
+        (slot_id,),
+    )
+    conn.commit()
+    conn.close()
+
+    return redirect("/admin/schedule?result=removed")
 
 
 @app.route("/admin/proof/<filename>")
