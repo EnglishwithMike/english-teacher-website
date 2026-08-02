@@ -76,9 +76,23 @@
                     <p>{{ t.mike_bio_1 }}</p>
                     <p>{{ t.mike_bio_2 }}</p>
                     <p>{{ t.mike_bio_3 }}</p>
+                    <a
+                        class="degree-certificate-button"
+                        href="{{ url_for('static', filename='documents/degree-certificate.pdf') }}"
+                        target="_blank"
+                        rel="noopener">
+                        Degree Certificate
+                    </a>
                 {% elif teacher == "michalis" %}
                     <p><strong>🇬🇷 Greek</strong></p>
                     <p>{{ t.michalis_bio }}</p>
+                    <a
+                        class="degree-certificate-button"
+                        href="{{ url_for('static', filename='documents/degree-certificate.pdf') }}"
+                        target="_blank"
+                        rel="noopener">
+                        Degree Certificate
+                    </a>
                 {% else %}
                     <p><strong>🇪🇸 Spanish</strong></p>
                     <p>{{ t.emily_bio_1 }}</p>
