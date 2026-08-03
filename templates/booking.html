@@ -174,7 +174,7 @@
                 <p>{{ t.select_day_mf }}</p>
             {% endif %}
 
-            <p>
+            <div class="static-booking-days">
                 {% for lesson_day in upcoming_dates %}
                     {% if teacher == "mike" %}
                         <a href="/booking/{{ lesson_day.day }}?date={{ lesson_day.date }}&lang={{ lang }}">
@@ -186,7 +186,7 @@
                         </a>
                     {% endif %}
                 {% endfor %}
-            </p>
+            </div>
         {% endif %}
 
         <a href="/?lang={{ lang }}">{{ t.back_home }}</a>
