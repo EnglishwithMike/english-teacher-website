@@ -585,28 +585,34 @@ def booking_day_approved_teacher(teacher_slug, day):
     )
 
 
-def get_upcoming_static_dates(teacher, number_of_days=35):
+def get_upcoming_static_dates(teacher):
     london_today = datetime.now(
         ZoneInfo("Europe/London")
     ).date()
 
-    allowed_weekdays = {0, 1, 2, 3, 4}
+    weekday_names = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+    ]
 
     if teacher == "emily":
-        allowed_weekdays.add(5)
+        weekday_names.append("Saturday")
 
     upcoming_dates = []
 
-    for offset in range(number_of_days):
-        lesson_date = london_today + timedelta(days=offset)
+    for weekday_number, weekday_name in enumerate(weekday_names):
+        days_until = (
+            weekday_number - london_today.weekday()
+        ) % 7
 
-        if lesson_date.weekday() not in allowed_weekdays:
-            continue
+        lesson_date = london_today + timedelta(days=days_until)
 
         upcoming_dates.append({
-            "day": lesson_date.strftime("%A"),
+            "day": weekday_name,
             "date": lesson_date.isoformat(),
-            "label": lesson_date.strftime("%A %d %B"),
         })
 
     return upcoming_dates
