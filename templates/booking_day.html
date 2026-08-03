@@ -41,15 +41,15 @@
     {% set times = ["10:00","11:00","12:00","13:00","14:00","15:00","16:00"] %}
 {% endif %}
 
-        {% for t in times %}
-            {% if t in booked %}
+        {% for slot_time in times %}
+            {% if slot_time in booked %}
                 <button type="button" disabled style="background:#012169; opacity:0.5; cursor:not-allowed;">
                     {{ t.booked }}
                 </button>
             {% else %}
-                <button type="button" onclick="selectTime(this)" data-time="{{ t }}">
+                <button type="button" onclick="selectTime(this)" data-time="{{ slot_time }}">
                     <span class="teacher-time">
-                        {{ t }}
+                        {{ slot_time }}
                         {% if dynamic_teacher %}
                             {{ teacher_info.timezone }}
                         {% else %}
@@ -58,7 +58,7 @@
                     </span>
                     <br>
                     <small class="local-time"
-                           data-teacher-time="{{ t }}"></small>
+                           data-teacher-time="{{ slot_time }}"></small>
                 </button>
             {% endif %}
         {% endfor %}
