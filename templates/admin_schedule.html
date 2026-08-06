@@ -93,7 +93,38 @@
             );
         </script>
 
-        <h2>Blocked dates and times</h2>
+        <h2>Upcoming free lessons</h2>
+
+    {% if upcoming_free_bookings %}
+        <div style="display:grid; gap:10px; margin-bottom:25px;">
+            {% for booking in upcoming_free_bookings %}
+                <div style="padding:12px; border:1px solid #ccd3e0;
+                            border-radius:10px;">
+                    <div>
+                        <strong>{{ booking.lesson_date }}</strong>
+                        at {{ booking.time }} UK time
+                    </div>
+                    <div>
+                        {{ booking.name }} — {{ booking.teacher|capitalize }}
+                    </div>
+                    <div>{{ booking.email }}</div>
+
+                    <form method="POST"
+                          action="/admin/schedule/booking/{{ booking.id }}/cancel"
+                          style="margin-top:10px;"
+                          onsubmit="return confirm('Cancel this free booking?');">
+                        <input type="hidden" name="csrf_token"
+                               value="{{ csrf_token }}">
+                        <button type="submit">Cancel Free Booking</button>
+                    </form>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p>No upcoming free lessons.</p>
+    {% endif %}
+
+    <h2>Blocked dates and times</h2>
 
         {% if blocked_slots %}
             <div style="display:grid; gap:10px;">

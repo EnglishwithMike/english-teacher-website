@@ -1956,19 +1956,32 @@ def admin_schedule():
     conn = sqlite3.connect("bookings.db")
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
+    today = datetime.now(
+        ZoneInfo("Europe/London")
+    ).date().isoformat()
+
     blocked_slots = cursor.execute("""
         SELECT id, lesson_date, time, created_at
         FROM blocked_slots
         WHERE lesson_date >= ?
         ORDER BY lesson_date, time
-    """, (
-        datetime.now(ZoneInfo("Europe/London")).date().isoformat(),
-    )).fetchall()
+    """, (today,)).fetchall()
+
+    upcoming_free_bookings = cursor.execute("""
+        SELECT id, teacher, lesson_date, time, name, email
+        FROM bookings
+        WHERE lesson_date >= ?
+          AND teacher IN ('mike', 'michalis')
+          AND checkout_session_id = 'FREE_FIRST_LESSON'
+        ORDER BY lesson_date, time
+    """, (today,)).fetchall()
+
     conn.close()
 
     return render_template(
         "admin_schedule.html",
         blocked_slots=blocked_slots,
+        upcoming_free_bookings=upcoming_free_bookings,
         csrf_token=session["admin_csrf_token"],
         result=request.args.get("result"),
         minimum_date=datetime.now(
@@ -2076,6 +2089,34 @@ def admin_schedule_remove(slot_id):
         "DELETE FROM blocked_slots WHERE id = ?",
         (slot_id,),
     )
+    conn.commit()
+    conn.close()
+
+    return redirect("/admin/schedule?result=removed")
+
+
+@app.route(
+    "/admin/schedule/booking/<int:booking_id>/cancel",
+    methods=["POST"]
+)
+@admin_required
+def admin_cancel_free_booking(booking_id):
+    submitted_token = request.form.get("csrf_token", "")
+    saved_token = session.get("admin_csrf_token", "")
+
+    if not saved_token or submitted_token != saved_token:
+        return "Invalid security token.", 403
+
+    conn = sqlite3.connect("bookings.db")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        DELETE FROM bookings
+        WHERE id = ?
+          AND teacher IN ('mike', 'michalis')
+          AND checkout_session_id = 'FREE_FIRST_LESSON'
+    """, (booking_id,))
+
     conn.commit()
     conn.close()
 
