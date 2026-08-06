@@ -93,7 +93,10 @@ def _translate_sql(sql):
         query,
         flags=re.IGNORECASE,
     )
-    if re.match(r"INSERT\s+INTO\s+free_lessons\b", query, re.IGNORECASE):
+    if (
+        re.match(r"INSERT\s+INTO\s+free_lessons\b", query, re.IGNORECASE)
+        and not re.search(r"\bON\s+CONFLICT\b", query, re.IGNORECASE)
+    ):
         query = query.rstrip().rstrip(";") + " ON CONFLICT DO NOTHING"
 
     query = re.sub(

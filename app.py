@@ -881,18 +881,13 @@ def book():
         """, (teacher, lesson_date, lesson_time))
         slot_exists = cursor.fetchone()
 
-    cursor.execute("""
-        SELECT email FROM free_lessons
-        WHERE lower(email) = lower(?)
-    """, (email,))
-    previous_free_lesson = cursor.fetchone()
-
-    conn.close()
-
     if slot_exists or blocked_slot:
+        conn.close()
         return "This slot is already booked.", 409
 
-    if teacher in ["mike", "michalis"] and not previous_free_lesson:
+    free_lesson_claimed = False
+
+    if teacher in ["mike", "michalis"]:
         try:
             student_local_time = convert_lesson_time(
                 day,
@@ -902,10 +897,26 @@ def book():
                 lesson_date
             )
         except (ValueError, ZoneInfoNotFoundError):
+            conn.close()
             return "Please select a valid timezone.", 400
 
-        conn = sqlite3.connect("bookings.db")
-        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO free_lessons (email)
+            VALUES (?)
+            ON CONFLICT DO NOTHING
+            RETURNING email
+        """, (email.strip().lower(),))
+
+        free_lesson_claimed = cursor.fetchone() is not None
+
+        if not free_lesson_claimed:
+            conn.rollback()
+            conn.close()
+
+    else:
+        conn.close()
+
+    if free_lesson_claimed:
 
         cursor.execute("""
             INSERT INTO bookings
@@ -918,11 +929,6 @@ def book():
             teacher, day, lesson_date, lesson_time,
             name, email, phone, "FREE_FIRST_LESSON", 0
         ))
-
-        cursor.execute("""
-            INSERT OR IGNORE INTO free_lessons (email)
-            VALUES (?)
-        """, (email.lower(),))
 
         conn.commit()
         conn.close()
