@@ -69,7 +69,7 @@ TEACHERS = {
 
 TRANSLATIONS = {
     "en": {
-        "slogan": "Learning in every direction.",
+        "slogan": "Learn in every direction.",
         "book_a_lesson": "Book a Lesson",
         "about_us": "About Us",
         "about_intro": "LearningXY is an independent online learning website that gives people from all around the world the opportunity to learn while also allowing teachers to create and offer their own lessons.",
