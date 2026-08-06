@@ -276,10 +276,16 @@
                 <span>Instagram</span>
             </a>
 
-        <a href="mailto:learningxy@proton.me">
-            <i class="fa-solid fa-envelope"></i>
-            <span>Email</span>
-        </a>
+        <div style="display:flex; flex-direction:column; align-items:center;">
+            <a href="mailto:learningxy@proton.me">
+                <i class="fa-solid fa-envelope"></i>
+                <span>Email</span>
+            </a>
+            <div style="display:flex; align-items:center; gap:6px; font-size:0.85em;">
+                <span>learningxy@proton.me</span>
+                <button type="button" aria-label="Copy email address" title="Copy email" style="background:none; border:none; padding:2px; cursor:pointer; color:inherit;" onclick="navigator.clipboard.writeText('learningxy@proton.me').then(() => { this.textContent='✓'; })"><i class="fa-regular fa-copy"></i></button>
+            </div>
+        </div>
 
             <a href="https://www.tiktok.com/@learningxy"
                target="_blank"
