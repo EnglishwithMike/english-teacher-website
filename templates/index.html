@@ -282,8 +282,8 @@
                 <span>Email</span>
             </a>
             <div style="display:flex; align-items:center; gap:6px; font-size:0.85em;">
-                <span>learningxy@proton.me</span>
-                <button type="button" aria-label="Copy email address" title="Copy email" style="background:none; border:none; padding:2px; cursor:pointer; color:inherit;" onclick="navigator.clipboard.writeText('learningxy@proton.me').then(() => { this.textContent='✓'; })"><i class="fa-regular fa-copy"></i></button>
+                <span style="font-size:16px; color:#012169;">learningxy@proton.me</span>
+                <button type="button" aria-label="Copy email address" title="Copy email" style="background:none; border:none; padding:2px; cursor:pointer; color:#012169; font-size:15px; line-height:1;" onclick="const original=this.innerHTML; navigator.clipboard.writeText('learningxy@proton.me').then(() => { this.textContent='✓'; setTimeout(() => { this.innerHTML=original; }, 3000); })"><i class="fa-regular fa-copy" style="font-size:15px;"></i></button>
             </div>
         </div>
 
