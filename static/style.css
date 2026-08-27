@@ -2240,3 +2240,153 @@ button:hover {
         width: 100%;
     }
 }
+
+
+/* LearningXY main logo */
+.brand-logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 0 0 8px;
+    font-size: clamp(2.7rem, 8vw, 5rem);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -3px;
+}
+
+.brand-bubbles {
+    position: relative;
+    display: inline-block;
+    width: 1.15em;
+    height: 1em;
+    flex-shrink: 0;
+}
+
+.brand-bubbles i {
+    position: absolute;
+}
+
+.brand-bubble-pink {
+    color: #ed0872;
+    font-size: 0.72em;
+    right: 0;
+    bottom: -0.08em;
+    transform: scaleX(-1);
+}
+
+.brand-bubble-blue {
+    color: #0865e8;
+    font-size: 0.9em;
+    left: 0;
+    top: -0.08em;
+}
+
+.brand-learning {
+    color: #071968;
+}
+
+.brand-x {
+    color: #55c900;
+}
+
+.brand-y {
+    color: #ed0872;
+}
+
+@media (max-width: 600px) {
+    .brand-logo {
+        gap: 7px;
+        letter-spacing: -2px;
+    }
+}
+
+
+/* Match free-lesson message with the green X */
+.free-lesson-message {
+    color: #55c900 !important;
+}
+
+
+/* Homepage slogan styling */
+.homepage-slogan {
+    color: #0865e8;
+    font-size: 1.35rem;
+}
+
+
+/* Cream backgrounds for homepage panels */
+.booking-panel,
+.about-panel,
+.become-teacher-panel {
+    background: #fce8c5 !important;
+}
+
+
+/* Match social panel with the cream homepage panels */
+.social-panel {
+    background: #fce8c5 !important;
+}
+
+
+/* LearningXY directional-arrow page background */
+body {
+    background-color: #eef8ff !important;
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='640' height='520' viewBox='0 0 640 520'%3E%3Cg opacity='0.22'%3E%3Cpath fill='%230865e8' d='M38 120V50H18L50 10l32 40H62v70z' transform='translate(25 20) rotate(-14 50 65)'/%3E%3Cpath fill='%2355c900' d='M38 120V50H18L50 10l32 40H62v70z' transform='translate(205 30) rotate(72 50 65)'/%3E%3Cpath fill='%23ed0872' d='M38 120V50H18L50 10l32 40H62v70z' transform='translate(440 20) rotate(164 50 65)'/%3E%3Cpath fill='%2355c900' d='M38 120V50H18L50 10l32 40H62v70z' transform='translate(45 300) rotate(286 50 65)'/%3E%3Cpath fill='%23ed0872' d='M38 120V50H18L50 10l32 40H62v70z' transform='translate(275 315) rotate(198 50 65)'/%3E%3Cpath fill='%230865e8' d='M38 120V50H18L50 10l32 40H62v70z' transform='translate(505 290) rotate(104 50 65)'/%3E%3Cpath fill='%23ed0872' d='M38 120V50H18L50 10l32 40H62v70z' transform='translate(350 165) rotate(252 50 65)'/%3E%3Cpath fill='%230865e8' d='M38 120V50H18L50 10l32 40H62v70z' transform='translate(115 175) rotate(172 50 65)'/%3E%3C/g%3E%3C/svg%3E"),
+        linear-gradient(135deg, #ffffff 0%, #f1f9ff 48%, #dceeff 100%) !important;
+    background-size: 640px 520px, cover !important;
+    background-repeat: repeat, no-repeat !important;
+    background-attachment: fixed !important;
+}
+
+
+/* Make homepage messages more visible */
+.homepage-slogan {
+    font-size: 1.65rem !important;
+    font-weight: 800 !important;
+    text-shadow: 0 1px 3px rgba(255, 255, 255, 0.95);
+}
+
+.free-lesson-message {
+    font-size: 1.45rem !important;
+    font-weight: 800 !important;
+    text-shadow: 0 1px 3px rgba(255, 255, 255, 0.95);
+}
+
+
+/* Extra visibility for free-lesson message */
+.free-lesson-message {
+    font-size: 1.6rem !important;
+    width: fit-content;
+    margin: 14px auto 0 !important;
+    padding: 9px 18px;
+    background: rgba(255, 255, 255, 0.88);
+    border-radius: 12px;
+    box-shadow: 0 3px 10px rgba(8, 101, 232, 0.15);
+}
+
+
+/* Remove free-lesson message background */
+.free-lesson-message {
+    background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+}
+
+
+/* Clear glow for free-lesson lettering */
+.free-lesson-message {
+    text-shadow:
+        0 0 2px #ffffff,
+        0 0 5px #ffffff,
+        0 0 8px rgba(255, 255, 255, 0.9),
+        0 2px 3px rgba(0, 0, 0, 0.25) !important;
+}
+
+
+/* Darker green for free-lesson message */
+.free-lesson-message {
+    color: #3f9f00 !important;
+}
