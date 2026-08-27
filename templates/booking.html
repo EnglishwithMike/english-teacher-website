@@ -175,14 +175,50 @@
             {% endif %}
 
             <div class="static-booking-days">
+                {% set translated_days = {
+                    "en": {
+                        "Monday": "Monday",
+                        "Tuesday": "Tuesday",
+                        "Wednesday": "Wednesday",
+                        "Thursday": "Thursday",
+                        "Friday": "Friday",
+                        "Saturday": "Saturday",
+                        "Sunday": "Sunday"
+                    },
+                    "es": {
+                        "Monday": "Lunes",
+                        "Tuesday": "Martes",
+                        "Wednesday": "Miércoles",
+                        "Thursday": "Jueves",
+                        "Friday": "Viernes",
+                        "Saturday": "Sábado",
+                        "Sunday": "Domingo"
+                    },
+                    "el": {
+                        "Monday": "Δευτέρα",
+                        "Tuesday": "Τρίτη",
+                        "Wednesday": "Τετάρτη",
+                        "Thursday": "Πέμπτη",
+                        "Friday": "Παρασκευή",
+                        "Saturday": "Σάββατο",
+                        "Sunday": "Κυριακή"
+                    }
+                } %}
+
                 {% for lesson_day in upcoming_dates %}
                     {% if teacher == "mike" %}
                         <a href="/booking/{{ lesson_day.day }}?date={{ lesson_day.date }}&lang={{ lang }}">
-                            {{ lesson_day.day }}
+                            {{ translated_days.get(
+                                lang,
+                                translated_days["en"]
+                            )[lesson_day.day] }}
                         </a>
                     {% else %}
                         <a href="/booking/{{ teacher }}/{{ lesson_day.day }}?date={{ lesson_day.date }}&lang={{ lang }}">
-                            {{ lesson_day.day }}
+                            {{ translated_days.get(
+                                lang,
+                                translated_days["en"]
+                            )[lesson_day.day] }}
                         </a>
                     {% endif %}
                 {% endfor %}
