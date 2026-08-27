@@ -70,6 +70,7 @@ TEACHERS = {
 TRANSLATIONS = {
     "en": {
         "slogan": "Learn in every direction.",
+        "free_lesson_message": "🎉 First lesson FREE with Mike & Michalis!",
         "book_a_lesson": "Book a Lesson",
         "about_us": "About Us",
         "about_intro": "LearningXY is an independent online learning website that gives people from all around the world the opportunity to learn while also allowing teachers to create and offer their own lessons.",
@@ -116,6 +117,7 @@ TRANSLATIONS = {
     },
     "el": {
         "slogan": "Μάθηση προς κάθε κατεύθυνση.",
+        "free_lesson_message": "🎉 Πρώτο μάθημα ΔΩΡΕΑΝ με τον Mike και τον Michalis!",
         "book_a_lesson": "Κλείστε ένα Μάθημα",
         "about_us": "Σχετικά με Εμάς",
         "about_intro": "Το LearningXY είναι μια ανεξάρτητη διαδικτυακή ιστοσελίδα μάθησης που δίνει σε ανθρώπους από όλο τον κόσμο την ευκαιρία να μάθουν, ενώ παράλληλα επιτρέπει σε εκπαιδευτικούς να δημιουργούν και να προσφέρουν τα δικά τους μαθήματα.",
@@ -162,6 +164,7 @@ TRANSLATIONS = {
     },
     "es": {
         "slogan": "Aprendizaje en todas las direcciones.",
+        "free_lesson_message": "🎉 ¡Primera clase GRATIS con Mike y Michalis!",
         "book_a_lesson": "Reserva una Clase",
         "about_us": "Sobre Nosotros",
         "about_intro": "LearningXY es un sitio web independiente de aprendizaje en línea que ofrece a personas de todo el mundo la oportunidad de aprender, al mismo tiempo que permite a los profesores crear y ofrecer sus propias clases.",
