@@ -2390,3 +2390,52 @@ body {
 .free-lesson-message {
     color: #3f9f00 !important;
 }
+
+
+.teacher-onboarding-instruction {
+    margin: 0 0 1.25rem;
+    color: #243b72;
+    font-weight: 600;
+}
+
+.teacher-free-lesson-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin: 1rem 0;
+    padding: 1rem;
+    border: 1px solid #243b72;
+    border-radius: 12px;
+    background: #fffaf0;
+    cursor: pointer;
+}
+
+.teacher-free-lesson-option input {
+    width: 20px;
+    height: 20px;
+    margin-top: 2px;
+    flex: 0 0 auto;
+}
+
+.teacher-free-lesson-option span {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.teacher-free-lesson-option small {
+    line-height: 1.4;
+    color: #4d5870;
+}
+
+.public-free-first-lesson {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin: 1rem 0;
+    padding: 0.85rem 1rem;
+    border: 1px solid #4f9d69;
+    border-radius: 10px;
+    background: #edf9f0;
+    color: #245c35;
+}

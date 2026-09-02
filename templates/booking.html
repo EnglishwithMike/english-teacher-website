@@ -56,6 +56,16 @@
                     {% endif %}
                 </p>
 
+                {% if teacher_info.free_first_lesson %}
+                    <div class="public-free-first-lesson">
+                        <strong>First lesson free</strong>
+                        <span>
+                            Try your first lesson with this teacher
+                            before deciding whether to continue.
+                        </span>
+                    </div>
+                {% endif %}
+
                 <a class="public-qualification-button"
                    href="/booking/teacher/{{ teacher }}/qualification"
                    target="_blank"

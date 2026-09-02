@@ -12,6 +12,7 @@ from cloud_storage import (
     upload_file,
 )
 import os
+import io
 import uuid
 import time
 import subprocess
@@ -21,6 +22,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 import stripe
 import resend
 from dotenv import load_dotenv
+from PIL import Image, ImageOps
 
 load_dotenv()
 
@@ -252,6 +254,15 @@ def init_db():
     """)
 
     c.execute("""
+        CREATE TABLE IF NOT EXISTS teacher_free_lessons (
+            teacher_slug TEXT NOT NULL,
+            email TEXT NOT NULL,
+            claimed_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (teacher_slug, email)
+        )
+    """)
+
+    c.execute("""
         CREATE TABLE IF NOT EXISTS blocked_slots (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             lesson_date TEXT NOT NULL,
@@ -316,7 +327,7 @@ def get_public_approved_teachers():
 
     teachers = cursor.execute("""
         SELECT id, slug, name, surname, subject, bio,
-               profile_image, hourly_rate_pence
+               profile_image, hourly_rate_pence, free_first_lesson
         FROM approved_teachers
         WHERE active = 1
         ORDER BY approved_at ASC
@@ -341,7 +352,8 @@ def get_approved_teacher_by_slug(slug):
     teacher = cursor.execute("""
         SELECT id, application_id, slug, name, surname,
                email, subject, bio, profile_image,
-               hourly_rate_pence, timezone, active
+               hourly_rate_pence, timezone,
+               free_first_lesson, active
         FROM approved_teachers
         WHERE slug = ? AND active = 1
     """, (slug,)).fetchone()
@@ -366,6 +378,7 @@ def get_approved_teacher_by_slug(slug):
         "profile_image": teacher["profile_image"],
         "hourly_rate_pence": teacher["hourly_rate_pence"],
         "timezone": teacher["timezone"],
+        "free_first_lesson": bool(teacher["free_first_lesson"]),
         "flag": "🎓",
         "lesson_name": (
             f"{teacher['subject']} Lesson with {teacher['name']}"
@@ -889,26 +902,71 @@ def book():
         return "This slot is already booked.", 409
 
     free_lesson_claimed = False
+    dynamic_free_lesson = (
+        dynamic_teacher
+        and teacher_info["free_first_lesson"]
+    )
 
-    if teacher in ["mike", "michalis"]:
+    if teacher in ["mike", "michalis"] or dynamic_free_lesson:
+        teacher_timezone = (
+            teacher_info["timezone"]
+            if dynamic_teacher
+            else "Europe/London"
+        )
+
+        if dynamic_teacher and not lesson_date:
+            weekday_numbers = {
+                "Monday": 0,
+                "Tuesday": 1,
+                "Wednesday": 2,
+                "Thursday": 3,
+                "Friday": 4,
+                "Saturday": 5,
+                "Sunday": 6,
+            }
+
+            teacher_today = datetime.now(
+                ZoneInfo(teacher_timezone)
+            ).date()
+
+            days_until_lesson = (
+                weekday_numbers[day] - teacher_today.weekday()
+            ) % 7
+
+            lesson_date = (
+                teacher_today + timedelta(days=days_until_lesson)
+            ).isoformat()
+
         try:
             student_local_time = convert_lesson_time(
                 day,
                 lesson_time,
-                "Europe/London",
+                teacher_timezone,
                 student_timezone,
-                lesson_date
+                lesson_date,
             )
         except (ValueError, ZoneInfoNotFoundError):
             conn.close()
             return "Please select a valid timezone.", 400
 
-        cursor.execute("""
-            INSERT INTO free_lessons (email)
-            VALUES (?)
-            ON CONFLICT DO NOTHING
-            RETURNING email
-        """, (email.strip().lower(),))
+        if dynamic_teacher:
+            cursor.execute("""
+                INSERT INTO teacher_free_lessons
+                (teacher_slug, email)
+                VALUES (?, ?)
+                ON CONFLICT DO NOTHING
+                RETURNING email
+            """, (
+                teacher,
+                email.strip().lower(),
+            ))
+        else:
+            cursor.execute("""
+                INSERT INTO free_lessons (email)
+                VALUES (?)
+                ON CONFLICT DO NOTHING
+                RETURNING email
+            """, (email.strip().lower(),))
 
         free_lesson_claimed = cursor.fetchone() is not None
 
@@ -964,12 +1022,30 @@ Your free first lesson with {teacher_name} has been booked.
 
 Your local lesson time: {student_local_time}
 Your timezone: {student_timezone}
-UK reference time: {day} {lesson_date}, {lesson_time} UK time
+Teacher reference time: {day} {lesson_date}, {lesson_time}
 Zoom meeting: {ZOOM_MEETING_URL}
 
 See you then!
 """
         )
+
+        if dynamic_teacher:
+            send_email(
+                teacher_info["email"],
+                "New Free First Lesson Booking",
+                f"""Hello {teacher_name},
+
+A student has booked a free first lesson with you.
+
+Student: {name}
+Student email: {email}
+Student phone: {phone}
+Lesson: {day} {lesson_date}, {lesson_time}
+Student local time: {student_local_time}
+
+You can also see this booking in your teacher dashboard.
+"""
+            )
 
         return render_template(
             "success.html",
@@ -1249,7 +1325,36 @@ def become_a_teacher():
 
 
 
-def create_approved_teacher_account(application_id):
+def ensure_teacher_free_lesson_column():
+    conn = sqlite3.connect("approved_teachers.db")
+    cursor = conn.cursor()
+
+    table_exists = cursor.execute("""
+        SELECT name
+        FROM sqlite_master
+        WHERE type = 'table'
+          AND name = 'approved_teachers'
+    """).fetchone()
+
+    if table_exists:
+        columns = {
+            row[1]
+            for row in cursor.execute(
+                "PRAGMA table_info(approved_teachers)"
+            ).fetchall()
+        }
+
+        if "free_first_lesson" not in columns:
+            cursor.execute("""
+                ALTER TABLE approved_teachers
+                ADD COLUMN free_first_lesson INTEGER NOT NULL DEFAULT 0
+            """)
+            conn.commit()
+
+    conn.close()
+
+
+def create_approved_teacher_account(application_id, active=1):
     application_conn = sqlite3.connect("teacher_applications.db")
     application_cursor = application_conn.cursor()
 
@@ -1292,6 +1397,7 @@ def create_approved_teacher_account(application_id):
             profile_image TEXT,
             hourly_rate_pence INTEGER NOT NULL DEFAULT 1000,
             timezone TEXT NOT NULL DEFAULT 'Europe/London',
+            free_first_lesson INTEGER NOT NULL DEFAULT 0,
             active INTEGER NOT NULL DEFAULT 1,
             approved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -1323,13 +1429,14 @@ def create_approved_teacher_account(application_id):
                 surname = ?,
                 subject = ?,
                 password_hash = ?,
-                active = 1
+                active = ?
             WHERE id = ?
         """, (
             name,
             surname,
             subject,
             password_hash,
+            active,
             existing_teacher[0],
         ))
         teacher_id = existing_teacher[0]
@@ -1338,9 +1445,9 @@ def create_approved_teacher_account(application_id):
             INSERT INTO approved_teachers
             (
                 application_id, slug, name, surname,
-                email, password_hash, subject
+                email, password_hash, subject, active
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             app_id,
             teacher_slug,
@@ -1349,6 +1456,7 @@ def create_approved_teacher_account(application_id):
             email,
             password_hash,
             subject,
+            active,
         ))
         teacher_id = cursor.lastrowid
 
@@ -1357,6 +1465,9 @@ def create_approved_teacher_account(application_id):
 
     return teacher_id
 
+
+
+ensure_teacher_free_lesson_column()
 
 
 PORTAL_TRANSLATIONS = {
@@ -1806,21 +1917,20 @@ def teacher_application(subject_slug):
             conn.commit()
             conn.close()
 
-            send_email(
-                OWNER_EMAIL,
-                f"New Teacher Application: {final_subject}",
-                f"""A new teacher application has been submitted.
-
-Application ID: {application_id}
-Subject: {final_subject}
-Name: {name} {surname}
-Email: {email}
-Proof file: {original_filename}
-
-The application is waiting for review."""
+            teacher_id = create_approved_teacher_account(
+                application_id,
+                active=0,
             )
 
-            return redirect(f"/teacher-application-success?name={name}")
+            if not teacher_id:
+                return "Unable to create the teacher profile.", 500
+
+            session["teacher_id"] = teacher_id
+            session["teacher_onboarding"] = True
+            session["teacher_application_id"] = application_id
+            session["teacher_proof_original_name"] = original_filename
+
+            return redirect("/teacher/dashboard")
 
     return render_template(
         "teacher_application.html",
@@ -2674,10 +2784,15 @@ def teacher_dashboard():
 
     teacher = cursor.execute("""
         SELECT id, application_id, slug, name, surname, email, subject, bio,
-               profile_image, hourly_rate_pence, timezone, active
+               profile_image, hourly_rate_pence, timezone,
+               free_first_lesson, active
         FROM approved_teachers
-        WHERE id = ? AND active = 1
-    """, (teacher_id,)).fetchone()
+        WHERE id = ?
+          AND (active = 1 OR ? = 1)
+    """, (
+        teacher_id,
+        int(bool(session.get("teacher_onboarding"))),
+    )).fetchone()
 
     if not teacher:
         conn.close()
@@ -2692,6 +2807,9 @@ def teacher_dashboard():
         timezone_name = request.form.get(
             "timezone", teacher["timezone"] or "Europe/London"
         ).strip()
+        free_first_lesson = int(
+            bool(request.form.get("free_first_lesson"))
+        )
 
         try:
             hourly_rate = round(float(rate_text), 2)
@@ -2737,6 +2855,17 @@ def teacher_dashboard():
                     (day, start_time, end_time)
                 )
 
+        if session.get("teacher_onboarding") and not error:
+            if not bio_text:
+                error = "Please add your teacher bio."
+            elif (
+                not teacher["profile_image"]
+                and not (profile_image and profile_image.filename)
+            ):
+                error = "Please upload a profile picture."
+            elif not selected_availability:
+                error = "Please select at least one available day."
+
         new_image_filename = teacher["profile_image"]
 
         if profile_image and profile_image.filename:
@@ -2753,8 +2882,14 @@ def teacher_dashboard():
                 image_size = profile_image.tell()
                 profile_image.seek(0)
 
-                if image_size > 5 * 1024 * 1024:
-                    error = "The profile picture must be under 5 MB."
+                if image_size > 20 * 1024 * 1024:
+                    error = "The selected image is too large to process."
+                else:
+                    try:
+                        Image.open(profile_image).verify()
+                        profile_image.seek(0)
+                    except Exception:
+                        error = "Please select a valid image file."
 
         qualification_original_name = None
         qualification_extension = None
@@ -2822,27 +2957,63 @@ def teacher_dashboard():
                 )
                 os.makedirs(image_directory, exist_ok=True)
 
-                new_image_filename = (
-                    f"{uuid.uuid4().hex}.{extension}"
+                profile_image.seek(0)
+                processed_image = Image.open(profile_image)
+                processed_image = ImageOps.exif_transpose(
+                    processed_image
                 )
+                processed_image.thumbnail(
+                    (1200, 1200),
+                    Image.Resampling.LANCZOS,
+                )
+
+                if processed_image.mode in ("RGBA", "LA"):
+                    rgba_image = processed_image.convert("RGBA")
+                    white_background = Image.new(
+                        "RGBA",
+                        rgba_image.size,
+                        "white",
+                    )
+                    white_background.alpha_composite(rgba_image)
+                    processed_image = white_background.convert("RGB")
+                else:
+                    processed_image = processed_image.convert("RGB")
+
+                image_buffer = io.BytesIO()
+                processed_image.save(
+                    image_buffer,
+                    format="JPEG",
+                    quality=85,
+                    optimize=True,
+                )
+                image_buffer.seek(0)
+
+                new_image_filename = f"{uuid.uuid4().hex}.jpg"
                 new_image_path = os.path.join(
                     image_directory,
-                    new_image_filename
+                    new_image_filename,
                 )
-                profile_image.save(new_image_path)
+
+                with open(new_image_path, "wb") as saved_image:
+                    saved_image.write(image_buffer.getvalue())
+
                 upload_file(
                     PROFILE_BUCKET,
                     new_image_filename,
-                    profile_image,
+                    image_buffer,
+                    content_type="image/jpeg",
                 )
 
                 old_image = teacher["profile_image"]
 
                 if old_image:
-                    remove_file(PROFILE_BUCKET, os.path.basename(old_image))
+                    remove_file(
+                        PROFILE_BUCKET,
+                        os.path.basename(old_image),
+                    )
                     old_image_path = os.path.join(
                         image_directory,
-                        os.path.basename(old_image)
+                        os.path.basename(old_image),
                     )
 
                     if os.path.isfile(old_image_path):
@@ -2853,13 +3024,15 @@ def teacher_dashboard():
                 SET hourly_rate_pence = ?,
                     profile_image = ?,
                     bio = ?,
-                    timezone = ?
+                    timezone = ?,
+                    free_first_lesson = ?
                 WHERE id = ?
             """, (
                 int(round(hourly_rate * 100)),
                 new_image_filename,
                 bio_text,
                 timezone_name,
+                free_first_lesson,
                 teacher_id,
             ))
 
@@ -2881,11 +3054,69 @@ def teacher_dashboard():
                 ))
 
             conn.commit()
+
+            if session.get("teacher_onboarding"):
+                application_id = session.get(
+                    "teacher_application_id",
+                    teacher["application_id"],
+                )
+                proof_original_name = session.get(
+                    "teacher_proof_original_name",
+                    "Uploaded qualification",
+                )
+
+                send_email(
+                    OWNER_EMAIL,
+                    f"New Teacher Application: {teacher['subject']}",
+                    f"""A new teacher application has been completed.
+
+Application ID: {application_id}
+Subject: {teacher['subject']}
+Name: {teacher['name']} {teacher['surname']}
+Email: {teacher['email']}
+Proof file: {proof_original_name}
+
+The applicant has completed their profile, price and availability.
+The application is waiting for review."""
+                )
+
+                send_email(
+                    teacher["email"],
+                    "Your LearningXY teacher application",
+                    f"""Hello {teacher['name']},
+
+Your teacher application has been received.
+
+You have completed your teacher profile, price and availability.
+Our team will now review your credentials and may get back to you
+as soon as tomorrow.
+
+We will contact you when a decision has been made.
+
+Good luck and happy teaching!
+
+LearningXY"""
+                )
+
+                applicant_name = teacher["name"]
+
+                session.pop("teacher_id", None)
+                session.pop("teacher_onboarding", None)
+                session.pop("teacher_application_id", None)
+                session.pop("teacher_proof_original_name", None)
+
+                conn.close()
+
+                return redirect(
+                    f"/teacher-application-success?name={applicant_name}"
+                )
+
             message = "Your teacher profile has been updated."
 
             teacher = cursor.execute("""
                 SELECT id, application_id, slug, name, surname, email, subject, bio,
-                       profile_image, hourly_rate_pence, timezone, active
+                       profile_image, hourly_rate_pence, timezone,
+               free_first_lesson, active
                 FROM approved_teachers
                 WHERE id = ?
             """, (teacher_id,)).fetchone()
@@ -2922,6 +3153,9 @@ def teacher_dashboard():
             teacher["slug"]
         ),
         timezone_options=sorted(available_timezones()),
+        teacher_onboarding=bool(
+            session.get("teacher_onboarding")
+        ),
     )
 
 
@@ -3007,8 +3241,12 @@ def teacher_qualification_viewer():
     teacher = cursor.execute("""
         SELECT id, application_id, name, surname, subject
         FROM approved_teachers
-        WHERE id = ? AND active = 1
-    """, (teacher_id,)).fetchone()
+        WHERE id = ?
+          AND (active = 1 OR ? = 1)
+    """, (
+        teacher_id,
+        int(bool(session.get("teacher_onboarding"))),
+    )).fetchone()
 
     conn.close()
 
@@ -3038,8 +3276,12 @@ def teacher_qualification_content():
     teacher = cursor.execute("""
         SELECT application_id
         FROM approved_teachers
-        WHERE id = ? AND active = 1
-    """, (teacher_id,)).fetchone()
+        WHERE id = ?
+          AND (active = 1 OR ? = 1)
+    """, (
+        teacher_id,
+        int(bool(session.get("teacher_onboarding"))),
+    )).fetchone()
     conn.close()
 
     if not teacher:

@@ -56,15 +56,26 @@
         <section class="teacher-settings-panel">
             <h2>Your Profile</h2>
 
-            {% if teacher.profile_image %}
-                <img class="teacher-profile-preview"
-                     src="/static/teacher_profiles/{{ teacher.profile_image }}"
-                     alt="{{ teacher.name }}">
-            {% else %}
-                <div class="teacher-profile-placeholder">
-                    <i class="fa-solid fa-user"></i>
-                </div>
+            {% if teacher_onboarding %}
+                <p class="teacher-onboarding-instruction">
+                    Complete your profile to finish your application.
+                </p>
             {% endif %}
+
+            <img id="selected-profile-preview"
+                 class="teacher-profile-preview"
+                 {% if teacher.profile_image %}
+                     src="/static/teacher_profiles/{{ teacher.profile_image }}"
+                 {% else %}
+                     hidden
+                 {% endif %}
+                 alt="{{ teacher.name }}">
+
+            <div id="profile-placeholder"
+                 class="teacher-profile-placeholder"
+                 {% if teacher.profile_image %}hidden{% endif %}>
+                <i class="fa-solid fa-user"></i>
+            </div>
 
             <label for="profile_image">Profile picture</label>
             <input id="profile_image"
@@ -72,7 +83,9 @@
                    type="file"
                    accept=".png,.jpg,.jpeg,.webp">
 
-            <small>PNG, JPG, JPEG or WEBP. Maximum 5 MB.</small>
+            <small>
+                PNG, JPG, JPEG or WEBP. Large images are resized automatically.
+            </small>
 
             <div class="teacher-qualification-card">
                 <div class="qualification-card-icon">
@@ -94,6 +107,22 @@
                     {% endif %}
                 </div>
             </div>
+
+            <label class="teacher-free-lesson-option">
+                <input type="checkbox"
+                       name="free_first_lesson"
+                       value="1"
+                       {% if teacher.free_first_lesson %}checked{% endif %}>
+
+                <span>
+                    <strong>Offer your first lesson for free</strong>
+                    <small>
+                        Giving students a free first lesson helps them
+                        decide whether they would like to continue
+                        learning with you.
+                    </small>
+                </span>
+            </label>
 
             <label for="qualification_file">
                 {% if qualification and qualification.proof_filename %}
@@ -474,5 +503,34 @@ document.querySelectorAll(
 });
 </script>
 
+<script>
+const profileInput = document.getElementById("profile_image");
+const profilePreview = document.getElementById(
+    "selected-profile-preview"
+);
+const profilePlaceholder = document.getElementById(
+    "profile-placeholder"
+);
+
+if (profileInput && profilePreview && profilePlaceholder) {
+    profileInput.addEventListener("change", function () {
+        const selectedFile = this.files && this.files[0];
+
+        if (!selectedFile) {
+            return;
+        }
+
+        const temporaryUrl = URL.createObjectURL(selectedFile);
+
+        profilePreview.onload = function () {
+            URL.revokeObjectURL(temporaryUrl);
+        };
+
+        profilePreview.src = temporaryUrl;
+        profilePreview.hidden = false;
+        profilePlaceholder.hidden = true;
+    });
+}
+</script>
 </body>
 </html>
