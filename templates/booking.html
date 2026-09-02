@@ -103,10 +103,6 @@
                         rel="noopener">
                         Degree Certificate
                     </a>
-                {% else %}
-                    <p><strong>🇪🇸 Spanish</strong></p>
-                    <p>{{ t.emily_bio_1 }}</p>
-                    <p>{{ t.emily_bio_2 }}</p>
                 {% endif %}
             {% endif %}
         </div>
@@ -178,11 +174,7 @@
                 </div>
             {% endif %}
         {% else %}
-            {% if teacher == "emily" %}
-                <p>{{ t.select_day_ms }}</p>
-            {% else %}
-                <p>{{ t.select_day_mf }}</p>
-            {% endif %}
+            <p>{{ t.select_day_mf }}</p>
 
             <div class="static-booking-days">
                 {% set translated_days = {

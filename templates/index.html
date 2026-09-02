@@ -75,16 +75,6 @@
                     </a>
                 </div>
 
-                <div class="teacher-card">
-                    <h3>🇪🇸 Emily</h3>
-                    <p>{{ t.spanish_lessons }}</p>
-                    <a href="/booking/emily?lang={{ lang }}">
-                        <button onclick="posthog.capture('book_spanish_clicked')">
-                            {{ t.book_spanish }}
-                        </button>
-                    </a>
-                </div>
-
                 {% for approved_teacher in approved_teachers %}
                     <div class="teacher-card approved-teacher-card">
                         <h3>

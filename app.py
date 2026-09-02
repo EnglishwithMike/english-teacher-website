@@ -57,11 +57,6 @@ TEACHERS = {
         "flag": "🇬🇧",
         "lesson_name": "English Lesson with Mike",
     },
-    "emily": {
-        "name": "Emily",
-        "flag": "🇪🇸",
-        "lesson_name": "Spanish Lesson with Emily",
-    },
     "michalis": {
         "name": "Michalis",
         "flag": "🇬🇷",
@@ -114,8 +109,6 @@ TRANSLATIONS = {
         "mike_bio_2": "During my studies I volunteered in numerous schools, gaining valuable classroom experience with learners of different ages.",
         "mike_bio_3": "I also completed the internationally recognised Trinity CertTESOL, where I taught university students and further developed my teaching, lesson planning and classroom management skills.",
         "michalis_bio": "Greek teacher offering personalised online Greek lessons for learners who want to build confidence and communicate clearly.",
-        "emily_bio_1": "Spanish teacher offering personalised online Spanish lessons.",
-        "emily_bio_2": "Lessons are designed to help students build confidence, improve communication skills and practise useful Spanish for real situations.",
     },
     "el": {
         "slogan": "Μάθηση προς κάθε κατεύθυνση.",
@@ -161,8 +154,6 @@ TRANSLATIONS = {
         "mike_bio_2": "Κατά τη διάρκεια των σπουδών μου εργάστηκα εθελοντικά σε πολλά σχολεία, αποκτώντας πολύτιμη εμπειρία με μαθητές διαφορετικών ηλικιών.",
         "mike_bio_3": "Ολοκλήρωσα επίσης το διεθνώς αναγνωρισμένο Trinity CertTESOL, όπου δίδαξα φοιτητές πανεπιστημίου και ανέπτυξα περαιτέρω τις δεξιότητές μου στη διδασκαλία, τον σχεδιασμό μαθημάτων και τη διαχείριση της τάξης.",
         "michalis_bio": "Καθηγητής Ελληνικών που προσφέρει εξατομικευμένα διαδικτυακά μαθήματα για μαθητές που θέλουν να αποκτήσουν αυτοπεποίθηση και να επικοινωνούν με άνεση.",
-        "emily_bio_1": "Καθηγήτρια Ισπανικών που προσφέρει εξατομικευμένα διαδικτυακά μαθήματα.",
-        "emily_bio_2": "Τα μαθήματα έχουν σχεδιαστεί ώστε να βοηθούν τους μαθητές να αποκτήσουν αυτοπεποίθηση, να βελτιώσουν την επικοινωνία τους και να εξασκήσουν χρήσιμα Ισπανικά για πραγματικές καταστάσεις.",
     },
     "es": {
         "slogan": "Aprendizaje en todas las direcciones.",
@@ -208,8 +199,6 @@ TRANSLATIONS = {
         "mike_bio_2": "Durante mis estudios fui voluntario en varios centros educativos, adquiriendo una valiosa experiencia docente con estudiantes de diferentes edades.",
         "mike_bio_3": "También obtuve el reconocido Trinity CertTESOL, donde enseñé a estudiantes universitarios y desarrollé aún más mis habilidades de enseñanza, planificación de clases y gestión del aula.",
         "michalis_bio": "Profesor de griego que ofrece clases personalizadas en línea para estudiantes que desean ganar confianza y comunicarse con claridad.",
-        "emily_bio_1": "Profesora de español que ofrece clases personalizadas en línea.",
-        "emily_bio_2": "Las clases están diseñadas para ayudar a los estudiantes a ganar confianza, mejorar sus habilidades comunicativas y practicar español útil para situaciones reales.",
     }
 }
 
@@ -614,9 +603,6 @@ def get_upcoming_static_dates(teacher):
         "Friday",
     ]
 
-    if teacher == "emily":
-        weekday_names.append("Saturday")
-
     upcoming_dates = []
 
     for weekday_number, weekday_name in enumerate(weekday_names):
@@ -647,19 +633,6 @@ def booking():
     )
 
 
-@app.route("/booking/emily")
-def booking_emily():
-    lang = get_lang()
-    return render_template(
-        "booking.html",
-        teacher="emily",
-        teacher_info=TEACHERS["emily"],
-        upcoming_dates=get_upcoming_static_dates("emily"),
-        lang=lang,
-        t=TRANSLATIONS[lang],
-    )
-
-
 @app.route("/booking/michalis")
 def booking_michalis():
     lang = get_lang()
@@ -676,11 +649,6 @@ def booking_michalis():
 @app.route("/booking/<day>")
 def booking_day(day):
     return show_booking_day("mike", day)
-
-
-@app.route("/booking/emily/<day>")
-def booking_day_emily(day):
-    return show_booking_day("emily", day)
 
 
 @app.route("/booking/michalis/<day>")
@@ -704,9 +672,6 @@ def show_booking_day(teacher, day):
     ).date()
 
     allowed_weekdays = {0, 1, 2, 3, 4}
-
-    if teacher == "emily":
-        allowed_weekdays.add(5)
 
     if (
         selected_date < london_today
@@ -814,34 +779,15 @@ def book():
         static_days = {
             "mike": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
             "michalis": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-            "emily": [
-                "Monday", "Tuesday", "Wednesday",
-                "Thursday", "Friday", "Saturday"
-            ],
         }
 
         if day not in static_days.get(teacher, []):
             return "That lesson day is not available.", 400
 
-        if teacher == "emily":
-            emily_times = {
-                "Wednesday": [
-                    "10:00", "11:00", "12:00",
-                    "13:00", "14:00", "15:00"
-                ],
-                "Thursday": [
-                    "10:00", "11:00", "12:00", "13:00", "14:00"
-                ],
-            }
-            valid_times = emily_times.get(
-                day,
-                ["10:00", "11:00", "12:00", "13:00", "14:00", "15:00"]
-            )
-        else:
-            valid_times = [
-                "10:00", "11:00", "12:00", "13:00",
-                "14:00", "15:00", "16:00"
-            ]
+        valid_times = [
+            "10:00", "11:00", "12:00", "13:00",
+            "14:00", "15:00", "16:00"
+        ]
 
         if lesson_time not in valid_times:
             return "That lesson time is not available.", 400

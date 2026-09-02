@@ -30,13 +30,6 @@
     <div class="day-grid">
         {% if dynamic_teacher %}
     {% set times = available_times %}
-{% elif teacher == "emily" and day == "Wednesday" %}
-    {% set times = ["10:00","11:00","12:00","13:00","14:00","15:00"] %}
-    {% set booked = times %}
-{% elif teacher == "emily" and day == "Thursday" %}
-    {% set times = ["10:00","11:00","12:00","13:00","14:00"] %}
-{% elif teacher == "emily" and day in ["Monday", "Tuesday", "Friday", "Saturday"] %}
-    {% set times = ["10:00","11:00","12:00","13:00","14:00","15:00"] %}
 {% else %}
     {% set times = ["10:00","11:00","12:00","13:00","14:00","15:00","16:00"] %}
 {% endif %}
@@ -96,10 +89,6 @@
 
     {% if dynamic_teacher %}
         <a href="/booking/teacher/{{ teacher }}?lang={{ lang }}">
-            {{ t.back_calendar }}
-        </a>
-    {% elif teacher == "emily" %}
-        <a href="/booking/emily?lang={{ lang }}">
             {{ t.back_calendar }}
         </a>
     {% elif teacher == "michalis" %}
