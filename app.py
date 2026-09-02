@@ -1304,9 +1304,7 @@ You can also see this booking in your teacher dashboard.
 @app.route("/become-a-teacher")
 def become_a_teacher():
     subjects = [
-        ("English", "fa-language"),
         ("Spanish", "fa-language"),
-        ("Greek", "fa-language"),
         ("French", "fa-language"),
         ("Maths", "fa-calculator"),
         ("Physics", "fa-atom"),
@@ -1784,9 +1782,7 @@ SUBJECT_TRANSLATIONS = {
 
 
 TEACHER_SUBJECTS = {
-    "english": "English",
     "spanish": "Spanish",
-    "greek": "Greek",
     "french": "French",
     "maths": "Maths",
     "physics": "Physics",
