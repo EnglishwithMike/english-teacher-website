@@ -81,7 +81,10 @@
             <input id="profile_image"
                    name="profile_image"
                    type="file"
-                   accept=".png,.jpg,.jpeg,.webp">
+                   accept=".png,.jpg,.jpeg,.webp"
+                   {% if teacher_onboarding and not teacher.profile_image %}
+                       required
+                   {% endif %}>
 
             <small>
                 PNG, JPG, JPEG or WEBP. Large images are resized automatically.
@@ -144,7 +147,8 @@
                       name="bio"
                       rows="7"
                       maxlength="2000"
-                      placeholder="Tell students about your experience, qualifications and teaching style.">{{ teacher.bio or '' }}</textarea>
+                      placeholder="Tell students about your experience, qualifications and teaching style."
+                      {% if teacher_onboarding %}required{% endif %}>{{ teacher.bio or '' }}</textarea>
             <small>Maximum 2,000 characters.</small>
 
             <label for="hourly_rate">Your price per hour</label>
@@ -529,6 +533,76 @@ if (profileInput && profilePreview && profilePlaceholder) {
         profilePreview.src = temporaryUrl;
         profilePreview.hidden = false;
         profilePlaceholder.hidden = true;
+    });
+}
+</script>
+
+<script>
+const teacherOnboarding = {{ "true" if teacher_onboarding else "false" }};
+const teacherSettingsForm = document.querySelector(
+    ".teacher-settings-form"
+);
+
+if (teacherOnboarding && teacherSettingsForm) {
+    teacherSettingsForm.addEventListener("submit", function (event) {
+        const selectedDays = Array.from(
+            document.querySelectorAll(
+                'input[name^="available_"]:checked'
+            )
+        );
+
+        let validationMessage = "";
+
+        if (selectedDays.length === 0) {
+            validationMessage =
+                "Please select at least one available teaching day.";
+        }
+
+        for (const dayCheckbox of selectedDays) {
+            const day = dayCheckbox.name.replace("available_", "");
+            const start = document.querySelector(
+                `[name="start_${day}"]`
+            );
+            const end = document.querySelector(
+                `[name="end_${day}"]`
+            );
+
+            if (!start?.value || !end?.value) {
+                validationMessage =
+                    `Please choose both times for ${day}.`;
+                break;
+            }
+
+            if (start.value >= end.value) {
+                validationMessage =
+                    `The finishing time for ${day} must be later than ` +
+                    "the starting time.";
+                break;
+            }
+        }
+
+        if (!validationMessage) {
+            return;
+        }
+
+        event.preventDefault();
+
+        let errorBox = document.querySelector(
+            ".client-onboarding-error"
+        );
+
+        if (!errorBox) {
+            errorBox = document.createElement("div");
+            errorBox.className =
+                "application-error client-onboarding-error";
+            teacherSettingsForm.before(errorBox);
+        }
+
+        errorBox.textContent = validationMessage;
+        errorBox.scrollIntoView({
+            behavior: "smooth",
+            block: "center"
+        });
     });
 }
 </script>
