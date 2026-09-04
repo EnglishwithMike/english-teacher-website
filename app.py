@@ -13,6 +13,7 @@ from cloud_storage import (
 )
 import os
 import io
+import hmac
 import uuid
 import time
 import subprocess
@@ -69,6 +70,14 @@ TRANSLATIONS = {
         "slogan": "Learn in every direction.",
         "free_lesson_message": "🎉 First lesson FREE with Mike & Michalis!",
         "book_a_lesson": "Book a Lesson",
+        "rate_this_teacher": "Rate this teacher",
+        "choose_rating": "Choose a rating from 1 to 5 stars",
+        "out_of_5_stars": "out of 5 stars",
+        "submit_rating": "Submit rating",
+        "rating_thanks": "Thank you! Your rating has been added.",
+        "rating_already": "You have already rated this teacher.",
+        "rating_only_booked": "Only students who have booked a lesson can leave a rating.",
+        "rating_unlock": "Book a lesson to unlock teacher ratings.",
         "about_us": "About Us",
         "about_intro": "LearningXY is an independent online learning website that gives people from all around the world the opportunity to learn while also allowing teachers to create and offer their own lessons.",
         "qualified_tutors": "Qualified and supportive tutors",
@@ -114,6 +123,14 @@ TRANSLATIONS = {
         "slogan": "Μάθηση προς κάθε κατεύθυνση.",
         "free_lesson_message": "🎉 Πρώτο μάθημα ΔΩΡΕΑΝ με τον Mike και τον Michalis!",
         "book_a_lesson": "Κλείστε ένα Μάθημα",
+        "rate_this_teacher": "Αξιολογήστε αυτόν τον εκπαιδευτικό",
+        "choose_rating": "Επιλέξτε αξιολόγηση από 1 έως 5 αστέρια",
+        "out_of_5_stars": "από 5 αστέρια",
+        "submit_rating": "Υποβολή αξιολόγησης",
+        "rating_thanks": "Ευχαριστούμε! Η αξιολόγησή σας προστέθηκε.",
+        "rating_already": "Έχετε ήδη αξιολογήσει αυτόν τον εκπαιδευτικό.",
+        "rating_only_booked": "Μόνο οι μαθητές που έχουν κλείσει μάθημα μπορούν να αφήσουν αξιολόγηση.",
+        "rating_unlock": "Κλείστε ένα μάθημα για να ενεργοποιήσετε τις αξιολογήσεις.",
         "about_us": "Σχετικά με Εμάς",
         "about_intro": "Το LearningXY είναι μια ανεξάρτητη διαδικτυακή ιστοσελίδα μάθησης που δίνει σε ανθρώπους από όλο τον κόσμο την ευκαιρία να μάθουν, ενώ παράλληλα επιτρέπει σε εκπαιδευτικούς να δημιουργούν και να προσφέρουν τα δικά τους μαθήματα.",
         "qualified_tutors": "Καταρτισμένοι και υποστηρικτικοί καθηγητές",
@@ -159,6 +176,14 @@ TRANSLATIONS = {
         "slogan": "Aprendizaje en todas las direcciones.",
         "free_lesson_message": "🎉 ¡Primera clase GRATIS con Mike y Michalis!",
         "book_a_lesson": "Reserva una Clase",
+        "rate_this_teacher": "Valora a este profesor",
+        "choose_rating": "Elige una valoración de 1 a 5 estrellas",
+        "out_of_5_stars": "de 5 estrellas",
+        "submit_rating": "Enviar valoración",
+        "rating_thanks": "¡Gracias! Tu valoración ha sido añadida.",
+        "rating_already": "Ya has valorado a este profesor.",
+        "rating_only_booked": "Solo los estudiantes que hayan reservado una clase pueden dejar una valoración.",
+        "rating_unlock": "Reserva una clase para poder valorar al profesor.",
         "about_us": "Sobre Nosotros",
         "about_intro": "LearningXY es un sitio web independiente de aprendizaje en línea que ofrece a personas de todo el mundo la oportunidad de aprender, al mismo tiempo que permite a los profesores crear y ofrecer sus propias clases.",
         "qualified_tutors": "Profesores cualificados y comprometidos",
@@ -207,6 +232,85 @@ def get_lang():
     if lang not in TRANSLATIONS:
         lang = "en"
     return lang
+
+
+RATING_START_COUNTS = {
+    "mike": 16,
+    "michalis": 10,
+}
+
+
+def get_teacher_rating_counts(teacher_keys):
+    counts = {
+        teacher: RATING_START_COUNTS.get(teacher, 0)
+        for teacher in teacher_keys
+    }
+
+    conn = sqlite3.connect("bookings.db")
+    cursor = conn.cursor()
+    rows = cursor.execute("""
+        SELECT teacher, COUNT(*)
+        FROM teacher_ratings
+        GROUP BY teacher
+    """).fetchall()
+    conn.close()
+
+    for row in rows:
+        teacher = row[0]
+        counts[teacher] = (
+            RATING_START_COUNTS.get(teacher, 0) + int(row[1])
+        )
+
+    return counts
+
+
+def grant_rating_permission(teacher, email):
+    permissions = dict(session.get("rating_permissions", {}))
+    permissions[teacher] = email.strip().lower()
+    session["rating_permissions"] = permissions
+    session.permanent = True
+    session.modified = True
+
+
+def teacher_booking_path(teacher):
+    if teacher == "mike":
+        return "/booking"
+    if teacher == "michalis":
+        return "/booking/michalis"
+    return f"/booking/teacher/{teacher}"
+
+
+def get_teacher_rating_context(teacher):
+    counts = get_teacher_rating_counts([teacher])
+    permissions = session.get("rating_permissions", {})
+    booking_email = permissions.get(teacher)
+    already_rated = False
+
+    if booking_email:
+        conn = sqlite3.connect("bookings.db")
+        cursor = conn.cursor()
+        already_rated = cursor.execute("""
+            SELECT id
+            FROM teacher_ratings
+            WHERE teacher = ? AND booking_email = ?
+        """, (teacher, booking_email)).fetchone() is not None
+        conn.close()
+
+    csrf_token = session.get("rating_csrf_token")
+
+    if not csrf_token:
+        csrf_token = uuid.uuid4().hex
+        session["rating_csrf_token"] = csrf_token
+
+    return {
+        "rating_count": counts.get(
+            teacher,
+            RATING_START_COUNTS.get(teacher, 0)
+        ),
+        "can_rate": bool(booking_email),
+        "already_rated": already_rated,
+        "rating_csrf_token": csrf_token,
+    }
 
 
 
@@ -258,6 +362,17 @@ def init_db():
             time TEXT NOT NULL,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             UNIQUE (lesson_date, time)
+        )
+    """)
+
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS teacher_ratings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            teacher TEXT NOT NULL,
+            booking_email TEXT NOT NULL,
+            rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (teacher, booking_email)
         )
     """)
 
@@ -379,10 +494,16 @@ def get_approved_teacher_by_slug(slug):
 @app.route("/")
 def home():
     lang = get_lang()
+    approved_teachers = get_public_approved_teachers()
+    teacher_keys = ["mike", "michalis"] + [
+        teacher["slug"] for teacher in approved_teachers
+    ]
+
     return render_template(
         "index.html",
         teachers=TEACHERS,
-        approved_teachers=get_public_approved_teachers(),
+        approved_teachers=approved_teachers,
+        rating_counts=get_teacher_rating_counts(teacher_keys),
         lang=lang,
         t=TRANSLATIONS[lang]
     )
@@ -500,6 +621,7 @@ def booking_approved_teacher(teacher_slug):
     availability = get_dynamic_teacher_availability(
         teacher_info["id"]
     )
+    rating_context = get_teacher_rating_context(teacher_slug)
 
     return render_template(
         "booking.html",
@@ -508,7 +630,8 @@ def booking_approved_teacher(teacher_slug):
         dynamic_teacher=True,
         available_days=[row["day"] for row in availability],
         lang=lang,
-        t=TRANSLATIONS[lang]
+        t=TRANSLATIONS[lang],
+        **rating_context
     )
 
 
@@ -623,6 +746,8 @@ def get_upcoming_static_dates(teacher):
 @app.route("/booking")
 def booking():
     lang = get_lang()
+    rating_context = get_teacher_rating_context("mike")
+
     return render_template(
         "booking.html",
         teacher="mike",
@@ -630,12 +755,15 @@ def booking():
         upcoming_dates=get_upcoming_static_dates("mike"),
         lang=lang,
         t=TRANSLATIONS[lang],
+        **rating_context
     )
 
 
 @app.route("/booking/michalis")
 def booking_michalis():
     lang = get_lang()
+    rating_context = get_teacher_rating_context("michalis")
+
     return render_template(
         "booking.html",
         teacher="michalis",
@@ -643,6 +771,7 @@ def booking_michalis():
         upcoming_dates=get_upcoming_static_dates("michalis"),
         lang=lang,
         t=TRANSLATIONS[lang],
+        **rating_context
     )
 
 
@@ -940,6 +1069,7 @@ def book():
         conn.commit()
         conn.close()
 
+        grant_rating_permission(teacher, email)
         teacher_name = teacher_info["name"]
         teacher_flag = teacher_info["flag"]
 
@@ -1064,6 +1194,79 @@ You can also see this booking in your teacher dashboard.
     )
 
 
+@app.route("/rate-teacher/<teacher>", methods=["POST"])
+def rate_teacher(teacher):
+    lang = request.form.get("lang", "en")
+
+    if lang not in TRANSLATIONS:
+        lang = "en"
+
+    expected_token = session.get("rating_csrf_token")
+    submitted_token = request.form.get("csrf_token", "")
+
+    if (
+        not expected_token
+        or not hmac.compare_digest(expected_token, submitted_token)
+    ):
+        return "Invalid rating request.", 400
+
+    try:
+        rating = int(request.form.get("rating", ""))
+    except ValueError:
+        rating = 0
+
+    if rating not in (1, 2, 3, 4, 5):
+        return "Please choose a rating from 1 to 5 stars.", 400
+
+    permissions = session.get("rating_permissions", {})
+    booking_email = permissions.get(teacher)
+
+    booking_path = teacher_booking_path(teacher)
+
+    if not booking_email:
+        return redirect(
+            f"{booking_path}?lang={lang}&rating_status=not-eligible"
+            "#teacher-rating"
+        )
+
+    conn = sqlite3.connect("bookings.db")
+    cursor = conn.cursor()
+
+    eligible_booking = cursor.execute("""
+        SELECT id
+        FROM bookings
+        WHERE teacher = ?
+          AND LOWER(email) = ?
+        LIMIT 1
+    """, (teacher, booking_email)).fetchone()
+
+    if not eligible_booking:
+        conn.close()
+        return redirect(
+            f"{booking_path}?lang={lang}&rating_status=not-eligible"
+            "#teacher-rating"
+        )
+
+    cursor.execute("""
+        INSERT INTO teacher_ratings
+            (teacher, booking_email, rating)
+        VALUES (?, ?, ?)
+        ON CONFLICT DO NOTHING
+        RETURNING id
+    """, (teacher, booking_email, rating))
+
+    rating_added = cursor.fetchone() is not None
+    conn.commit()
+    conn.close()
+
+    status = "thanks" if rating_added else "already-rated"
+
+    return redirect(
+        f"{booking_path}?lang={lang}&rating_status={status}"
+        "#teacher-rating"
+    )
+
+
 @app.route("/success")
 def success():
     session_id = request.args.get("session_id")
@@ -1172,6 +1375,8 @@ def success():
         conn.commit()
 
     conn.close()
+
+    grant_rating_permission(teacher, email)
 
     owner_email_ok = send_email(
         OWNER_EMAIL,

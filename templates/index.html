@@ -63,6 +63,7 @@
                             {{ t.book_english }}
                         </button>
                     </a>
+                    <span class="teacher-rating"><span class="rating-star">⭐️</span> ({{ rating_counts.get("mike", 16) }})</span>
                 </div>
 
                 <div class="teacher-card">
@@ -73,6 +74,7 @@
                             {{ t.book_greek }}
                         </button>
                     </a>
+                    <span class="teacher-rating"><span class="rating-star">⭐️</span> ({{ rating_counts.get("michalis", 10) }})</span>
                 </div>
 
                 {% for approved_teacher in approved_teachers %}
@@ -136,6 +138,7 @@
                                 ) }}
                             </button>
                         </a>
+                        <span class="teacher-rating"><span class="rating-star">⭐️</span> ({{ rating_counts.get(approved_teacher.slug, 0) }})</span>
                     </div>
                 {% endfor %}
 

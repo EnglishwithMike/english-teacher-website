@@ -9,6 +9,75 @@
 </head>
 <body>
 
+{% macro teacher_rating_widget(
+    teacher,
+    rating_count,
+    can_rate,
+    already_rated,
+    rating_csrf_token,
+    lang
+) %}
+    <div class="teacher-rating-widget" id="teacher-rating">
+        <div class="teacher-rating-heading">
+            <strong>{{ t.rate_this_teacher }}</strong>
+            <span class="teacher-rating-total">
+                <span class="rating-star">⭐️</span>
+                ({{ rating_count }})
+            </span>
+        </div>
+
+        {% set rating_status = request.args.get("rating_status") %}
+        {% set rating_enabled = can_rate and not already_rated %}
+
+        <form method="post"
+              action="/rate-teacher/{{ teacher }}"
+              class="teacher-rating-form">
+            <input type="hidden"
+                   name="csrf_token"
+                   value="{{ rating_csrf_token }}">
+            <input type="hidden" name="lang" value="{{ lang }}">
+
+            <fieldset class="rating-stars{% if not rating_enabled %} locked{% endif %}"
+                      {% if not rating_enabled %}disabled{% endif %}
+                      aria-label="{{ t.choose_rating }}">
+                {% for value in range(5, 0, -1) %}
+                    <input type="radio"
+                           id="rating-{{ teacher }}-{{ value }}"
+                           name="rating"
+                           value="{{ value }}"
+                           required>
+                    <label for="rating-{{ teacher }}-{{ value }}"
+                           title="{{ value }} {{ t.out_of_5_stars }}">⭐️</label>
+                {% endfor %}
+            </fieldset>
+
+            {% if rating_enabled %}
+                <button type="submit" class="rating-submit-button">
+                    {{ t.submit_rating }}
+                </button>
+            {% endif %}
+        </form>
+
+        {% if rating_status == "thanks" %}
+            <p class="rating-message rating-success">
+                {{ t.rating_thanks }}
+            </p>
+        {% elif rating_status == "already-rated" or already_rated %}
+            <p class="rating-message">
+                {{ t.rating_already }}
+            </p>
+        {% elif rating_status == "not-eligible" %}
+            <p class="rating-message rating-error">
+                {{ t.rating_only_booked }}
+            </p>
+        {% elif not can_rate %}
+            <p class="rating-message">
+                {{ t.rating_unlock }}
+            </p>
+        {% endif %}
+    </div>
+{% endmacro %}
+
 <div class="language-switcher">
     <a href="{{ request.path }}?lang=en">🇬🇧</a> |
     <a href="{{ request.path }}?lang=el">🇬🇷</a> |
@@ -66,6 +135,15 @@
                     </div>
                 {% endif %}
 
+                {{ teacher_rating_widget(
+                    teacher,
+                    rating_count,
+                    can_rate,
+                    already_rated,
+                    rating_csrf_token,
+                    lang
+                ) }}
+
                 <a class="public-qualification-button"
                    href="/booking/teacher/{{ teacher }}/qualification"
                    target="_blank"
@@ -86,6 +164,16 @@
                     <p>{{ t.mike_bio_1 }}</p>
                     <p>{{ t.mike_bio_2 }}</p>
                     <p>{{ t.mike_bio_3 }}</p>
+
+                    {{ teacher_rating_widget(
+                        teacher,
+                        rating_count,
+                        can_rate,
+                        already_rated,
+                        rating_csrf_token,
+                        lang
+                    ) }}
+
                     <a
                         class="degree-certificate-button"
                         href="{{ url_for('static', filename='documents/degree-certificate.pdf') }}"
@@ -96,6 +184,16 @@
                 {% elif teacher == "michalis" %}
                     <p><strong>🇬🇷 Greek</strong></p>
                     <p>{{ t.michalis_bio }}</p>
+
+                    {{ teacher_rating_widget(
+                        teacher,
+                        rating_count,
+                        can_rate,
+                        already_rated,
+                        rating_csrf_token,
+                        lang
+                    ) }}
+
                     <a
                         class="degree-certificate-button"
                         href="{{ url_for('static', filename='documents/degree-certificate.pdf') }}"
