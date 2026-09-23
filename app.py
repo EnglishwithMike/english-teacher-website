@@ -3677,5 +3677,16 @@ def success_preview():
 
 
 
+
+@app.route("/facebook-privacy", methods=["GET"])
+def facebook_bot_privacy():
+    return render_template("facebook_privacy.html")
+
+
+@app.route("/facebook-data-deletion", methods=["GET"])
+def facebook_bot_data_deletion():
+    return render_template("facebook_data_deletion.html")
+
+
 if __name__ == "__main__":
     app.run(debug=True)
